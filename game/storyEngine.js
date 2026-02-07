@@ -1,6 +1,6 @@
 // Story generation engine using Gemini API or fallback
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const https = require('https');
 
 // Configuration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -63,7 +63,8 @@ class StoryEngine {
       '  ]',
       '}',
       '',
-      'RULES:',
+      'CRITICAL RULES:',
+      '- Write ONLY in English (no other languages)',
       '- Story must be 50-70 words',
       '- Choices must start with A), B), C)',
       '- Each choice <= 12 words',
@@ -91,19 +92,22 @@ class StoryEngine {
     }
 
     try {
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
       const prompt = this.buildPrompt(roundIndex, previousChoice);
-
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      
+      // Use REST API instead of SDK to avoid encoding issues
+      const requestBody = {
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
         generationConfig: {
-          temperature: 0.8,
-          maxOutputTokens: 256
+          temperature: 0.7,
+          maxOutputTokens: 1024
         }
-      });
+      };
 
-      const text = result.response.text();
+      const result = await this.callGeminiAPI(requestBody);
+      const text = result;
       const parsed = this.safeParseJSON(text);
 
       if (!parsed || !parsed.story || !Array.isArray(parsed.choices)) {
@@ -127,8 +131,58 @@ class StoryEngine {
       };
     } catch (err) {
       console.error('❌ Gemini API error:', err.message || err);
+      console.log('↩️  Falling back to offline story');
       return this.getFallbackRound(roundIndex);
     }
+  }
+
+  // Call Gemini API via REST
+  callGeminiAPI(requestBody) {
+    return new Promise((resolve, reject) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+      
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 5000
+      };
+
+      const req = https.request(url, options, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            console.log('API Response:', JSON.stringify(parsed).substring(0, 200));
+            
+            if (parsed.error) {
+              reject(new Error(`API Error: ${parsed.error.message}`));
+              return;
+            }
+            
+            if (parsed.candidates && parsed.candidates[0] && parsed.candidates[0].content) {
+              const text = parsed.candidates[0].content.parts[0].text;
+              resolve(text);
+            } else {
+              reject(new Error('Invalid API response structure'));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('API timeout'));
+      });
+
+      req.write(JSON.stringify(requestBody));
+      req.end();
+    });
   }
 }
 

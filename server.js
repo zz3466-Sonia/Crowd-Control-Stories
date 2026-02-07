@@ -12,6 +12,9 @@ app.use(express.json());
 // Structure: { partyCode: { players: [], createdAt: timestamp, gameState: {} } }
 const parties = {};
 
+// Max players allowed per party
+const MAX_PLAYERS = 8;
+
 // Generate random 6-character party code
 function generatePartyCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -83,6 +86,10 @@ app.post('/api/party/join', (req, res) => {
 
   if (party.gameState.started) {
     return res.status(400).json({ error: 'Game already started' });
+  }
+
+  if (party.players.length >= MAX_PLAYERS) {
+    return res.status(400).json({ error: `Party is full (max ${MAX_PLAYERS} players)` });
   }
 
   // Check if player name already exists in party

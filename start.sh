@@ -1,19 +1,23 @@
 #!/bin/bash
 
-echo "🎮 CROWDSTORY - 启动脚本"
-echo "========================"
+echo "🎮 CROWDSTORY - Startup Script"
+echo "=============================="
 echo ""
-echo "启动后端服务器..."
-cd /Users/siqijiang/aigame
+
+# Navigate to the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
+echo "Starting backend server..."
 node server.js &
 BACKEND_PID=$!
 
 sleep 2
 
 echo ""
-echo "启动前端网页服务器..."
-cd /Users/siqijiang/aigame/frontend
+echo "Starting frontend web server..."
+cd frontend
 npx vite --port 5173
 
-# Ctrl+C 时清理
+# Cleanup on Ctrl+C
 trap "kill $BACKEND_PID" EXIT

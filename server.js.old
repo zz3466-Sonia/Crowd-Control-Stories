@@ -1,0 +1,443 @@
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// In-memory storage for parties
+// Structure: { partyCode: { players: [], createdAt: timestamp, gameState: {} } }
+const parties = {};
+
+// Max players allowed per party
+const MAX_PLAYERS = 8;
+
+// Gemini API config (set GEMINI_API_KEY in env)
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+// Simple placeholder story rounds (fallback if API unavailable)
+const STORY_ROUNDS = [
+  {
+    story: 'The astronaut, the AI, and the alien meet in a silent space station.'
+      + ' The AI warns of an unknown signal.',
+    choices: ['A) Trust the AI', 'B) Question the AI', 'C) Contact the alien']
+  },
+  {
+    story: 'The signal grows louder. The alien reveals a hidden hatch.'
+      + ' The astronaut hesitates.',
+    choices: ['A) Open the hatch', 'B) Ask for proof', 'C) Walk away']
+  },
+  {
+    story: 'A strange light spills out. The AI begins to glitch.'
+      + ' The alien offers a deal.',
+    choices: ['A) Accept the deal', 'B) Refuse and run', 'C) Shut down the AI']
+  }
+];
+
+function getFallbackRound(roundIndex) {
+  const fallback = STORY_ROUNDS[roundIndex % STORY_ROUNDS.length];
+  return {
+    story: fallback.story,
+    choices: fallback.choices
+  };
+}
+
+function buildGeminiPrompt(roundIndex, previousChoice) {
+  return [
+    '=== INTERACTIVE SCI-FI STORY GENERATOR ===',
+    'You are continuing an interactive sci-fi story with THREE CHARACTERS:',
+    '- An astronaut (human explorer)',
+    '- An AI (advanced artificial intelligence)',
+    '- An alien (mysterious extraterrestrial)',
+    '',
+    'SETTING: They are on a silent space station where an unknown signal has appeared.',
+    '',
+    'THEME: Maintain suspense, mystery, and sci-fi atmosphere throughout.',
+    'Keep the same three characters in every scene.',
+    '',
+    `ROUND: ${roundIndex + 1}`,
+    previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}" in the last round. Continue the story based on this choice.` : 'This is the first round. Start the story.',
+    '',
+    'OUTPUT FORMAT (JSON ONLY):',
+    '{',
+    '  "story": "A short scene description (50-70 words). Show what the characters do/say based on the previous choice.",',
+    '  "choices": [',
+    '    "A) [Action option related to astronaut]",',
+    '    "B) [Action option related to AI]",',
+    '    "C) [Action option related to alien]"',
+    '  ]',
+    '}',
+    '',
+    'RULES:',
+    '- Story must be 50-70 words',
+    '- Choices must start with A), B), C)',
+    '- Each choice <= 12 words',
+    '- Keep sci-fi theme consistent',
+    '- Return ONLY the JSON, no extra text'
+  ].join('\n');
+}
+
+function safeParseGeminiJSON(text) {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+async function getRoundContent(roundIndex, previousChoice) {
+  if (!GEMINI_API_KEY) {
+    return getFallbackRound(roundIndex);
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+    const prompt = buildGeminiPrompt(roundIndex, previousChoice);
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 256
+      }
+    });
+
+    const text = result.response.text();
+    const parsed = safeParseGeminiJSON(text);
+    if (!parsed || !parsed.story || !Array.isArray(parsed.choices)) {
+      return getFallbackRound(roundIndex);
+    }
+
+    const cleanedChoices = parsed.choices
+      .filter(c => typeof c === 'string')
+      .slice(0, 3);
+
+    if (cleanedChoices.length !== 3) {
+      return getFallbackRound(roundIndex);
+    }
+
+    return {
+      story: String(parsed.story),
+      choices: cleanedChoices
+    };
+  } catch (err) {
+    console.error('Gemini API error:', err.message || err);
+    return getFallbackRound(roundIndex);
+  }
+}
+
+// Generate random 6-character party code
+function generatePartyCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  // Check if code already exists
+  if (parties[code]) {
+    return generatePartyCode(); // Recursively generate new code
+  }
+  return code;
+}
+
+// ========== PARTY ENDPOINTS ==========
+
+// Create a new party
+app.post('/api/party/create', (req, res) => {
+  const { playerName } = req.body;
+  
+  if (!playerName || playerName.trim() === '') {
+    return res.status(400).json({ error: 'Player name is required' });
+  }
+
+  const partyCode = generatePartyCode();
+  const playerId = Date.now().toString(); // Simple unique ID
+  
+  parties[partyCode] = {
+    players: [{
+      id: playerId,
+      name: playerName,
+      isHost: true,
+      joinedAt: new Date().toISOString()
+    }],
+    createdAt: new Date().toISOString(),
+    gameState: {
+      started: false,
+      currentRound: 0,
+      currentStory: '',
+      currentChoices: [],
+      votes: {},
+      voteCounts: { A: 0, B: 0, C: 0 },
+      lastWinner: null
+    }
+  };
+
+  console.log(`✅ Party created: ${partyCode} by ${playerName}`);
+
+  res.json({
+    success: true,
+    partyCode,
+    playerId,
+    playerName,
+    isHost: true
+  });
+});
+
+// Join an existing party
+app.post('/api/party/join', (req, res) => {
+  const { partyCode, playerName } = req.body;
+
+  if (!partyCode || !playerName) {
+    return res.status(400).json({ error: 'Party code and player name are required' });
+  }
+
+  const party = parties[partyCode.toUpperCase()];
+  
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  if (party.gameState.started) {
+    return res.status(400).json({ error: 'Game already started' });
+  }
+
+  if (party.players.length >= MAX_PLAYERS) {
+    return res.status(400).json({ error: `Party is full (max ${MAX_PLAYERS} players)` });
+  }
+
+  // Check if player name already exists in party
+  const existingPlayer = party.players.find(p => p.name === playerName);
+  if (existingPlayer) {
+    return res.status(400).json({ error: 'Player name already taken in this party' });
+  }
+
+  const playerId = Date.now().toString();
+  
+  party.players.push({
+    id: playerId,
+    name: playerName,
+    isHost: false,
+    joinedAt: new Date().toISOString()
+  });
+
+  console.log(`✅ ${playerName} joined party ${partyCode}`);
+
+  res.json({
+    success: true,
+    partyCode: partyCode.toUpperCase(),
+    playerId,
+    playerName,
+    isHost: false
+  });
+});
+
+// ========== GAME ENDPOINTS ==========
+
+// Start game (host only recommended)
+app.post('/api/game/start', async (req, res) => {
+  const { partyCode } = req.body;
+
+  if (!partyCode) {
+    return res.status(400).json({ error: 'Party code is required' });
+  }
+
+  const party = parties[partyCode.toUpperCase()];
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  party.gameState.started = true;
+  party.gameState.currentRound = 1;
+  party.gameState.votes = {};
+  party.gameState.voteCounts = { A: 0, B: 0, C: 0 };
+  party.gameState.lastWinner = null;
+
+  const roundContent = await getRoundContent(0);
+  party.gameState.currentStory = roundContent.story;
+  party.gameState.currentChoices = roundContent.choices;
+
+  res.json({
+    success: true,
+    gameState: party.gameState
+  });
+});
+
+// Submit a vote
+app.post('/api/game/vote', (req, res) => {
+  const { partyCode, playerId, choice } = req.body;
+
+  if (!partyCode || !playerId || !choice) {
+    return res.status(400).json({ error: 'Party code, player ID, and choice are required' });
+  }
+
+  const party = parties[partyCode.toUpperCase()];
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  if (!party.gameState.started) {
+    return res.status(400).json({ error: 'Game not started' });
+  }
+
+  const normalizedChoice = choice.toUpperCase();
+  if (!['A', 'B', 'C'].includes(normalizedChoice)) {
+    return res.status(400).json({ error: 'Choice must be A, B, or C' });
+  }
+
+  const playerInParty = party.players.find(p => p.id === playerId);
+  if (!playerInParty) {
+    return res.status(404).json({ error: 'Player not found in party' });
+  }
+
+  const previousChoice = party.gameState.votes[playerId];
+  if (previousChoice) {
+    party.gameState.voteCounts[previousChoice] = Math.max(
+      0,
+      party.gameState.voteCounts[previousChoice] - 1
+    );
+  }
+
+  party.gameState.votes[playerId] = normalizedChoice;
+  party.gameState.voteCounts[normalizedChoice] += 1;
+
+  res.json({
+    success: true,
+    voteCounts: party.gameState.voteCounts
+  });
+});
+
+// Tally votes and advance to next round
+app.post('/api/game/next', async (req, res) => {
+  const { partyCode } = req.body;
+
+  if (!partyCode) {
+    return res.status(400).json({ error: 'Party code is required' });
+  }
+
+  const party = parties[partyCode.toUpperCase()];
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  if (!party.gameState.started) {
+    return res.status(400).json({ error: 'Game not started' });
+  }
+
+  const counts = party.gameState.voteCounts;
+  const winner = ['A', 'B', 'C'].reduce((best, key) => {
+    if (!best) return key;
+    return counts[key] > counts[best] ? key : best;
+  }, null);
+
+  party.gameState.lastWinner = winner;
+  party.gameState.currentRound += 1;
+  party.gameState.votes = {};
+  party.gameState.voteCounts = { A: 0, B: 0, C: 0 };
+
+  const roundContent = await getRoundContent(party.gameState.currentRound - 1, winner);
+  party.gameState.currentStory = roundContent.story;
+  party.gameState.currentChoices = roundContent.choices;
+
+  res.json({
+    success: true,
+    gameState: party.gameState
+  });
+});
+
+// Get party info (players list, game state)
+app.get('/api/party/:partyCode', (req, res) => {
+  const { partyCode } = req.params;
+  const party = parties[partyCode.toUpperCase()];
+
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  res.json({
+    success: true,
+    partyCode: partyCode.toUpperCase(),
+    players: party.players,
+    gameState: party.gameState,
+    createdAt: party.createdAt
+  });
+});
+
+// Leave party
+app.post('/api/party/leave', (req, res) => {
+  const { partyCode, playerId } = req.body;
+
+  if (!partyCode || !playerId) {
+    return res.status(400).json({ error: 'Party code and player ID are required' });
+  }
+
+  const party = parties[partyCode.toUpperCase()];
+  
+  if (!party) {
+    return res.status(404).json({ error: 'Party not found' });
+  }
+
+  const playerIndex = party.players.findIndex(p => p.id === playerId);
+  
+  if (playerIndex === -1) {
+    return res.status(404).json({ error: 'Player not found in party' });
+  }
+
+  const player = party.players[playerIndex];
+  party.players.splice(playerIndex, 1);
+
+  console.log(`👋 ${player.name} left party ${partyCode}`);
+
+  // If party is empty, delete it
+  if (party.players.length === 0) {
+    delete parties[partyCode.toUpperCase()];
+    console.log(`🗑️  Party ${partyCode} deleted (empty)`);
+  }
+  // If host left, assign new host
+  else if (player.isHost && party.players.length > 0) {
+    party.players[0].isHost = true;
+    console.log(`👑 ${party.players[0].name} is now host of party ${partyCode}`);
+  }
+
+  res.json({
+    success: true,
+    message: 'Left party successfully'
+  });
+});
+
+// ========== UTILITY ENDPOINTS ==========
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    activeParties: Object.keys(parties).length,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Get all active parties (for debugging)
+app.get('/api/debug/parties', (req, res) => {
+  res.json({
+    parties: Object.keys(parties).map(code => ({
+      code,
+      playerCount: parties[code].players.length,
+      players: parties[code].players.map(p => p.name)
+    }))
+  });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📡 Party system ready!`);
+});

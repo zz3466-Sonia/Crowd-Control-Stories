@@ -1,33 +1,24 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
+
+// Import modules
+const partyStore = require('./state/partyStore');
+const GameState = require('./game/gameState');
+const storyEngine = require('./game/storyEngine');
+const VotingEngine = require('./game/votingEngine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Initialize game modules
+const gameState = new GameState(partyStore);
+const votingEngine = new VotingEngine(partyStore);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// In-memory storage for parties
-// Structure: { partyCode: { players: [], createdAt: timestamp, gameState: {} } }
-const parties = {};
-
-// Max players allowed per party
-const MAX_PLAYERS = 8;
-
-// Generate random 6-character party code
-function generatePartyCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  // Check if code already exists
-  if (parties[code]) {
-    return generatePartyCode(); // Recursively generate new code
-  }
-  return code;
-}
 
 // ========== PARTY ENDPOINTS ==========
 
@@ -39,35 +30,13 @@ app.post('/api/party/create', (req, res) => {
     return res.status(400).json({ error: 'Player name is required' });
   }
 
-  const partyCode = generatePartyCode();
-  const playerId = Date.now().toString(); // Simple unique ID
-  
-  parties[partyCode] = {
-    players: [{
-      id: playerId,
-      name: playerName,
-      isHost: true,
-      joinedAt: new Date().toISOString()
-    }],
-    createdAt: new Date().toISOString(),
-    gameState: {
-      started: false,
-      currentRound: 0,
-      currentStory: '',
-      currentChoices: [],
-      votes: {}
-    }
-  };
-
-  console.log(`✅ Party created: ${partyCode} by ${playerName}`);
-
-  res.json({
-    success: true,
-    partyCode,
-    playerId,
-    playerName,
-    isHost: true
-  });
+  try {
+    const result = partyStore.createParty(playerName);
+    console.log(`✅ Party created: ${result.partyCode} by ${playerName}`);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Join an existing party
@@ -78,62 +47,32 @@ app.post('/api/party/join', (req, res) => {
     return res.status(400).json({ error: 'Party code and player name are required' });
   }
 
-  const party = parties[partyCode.toUpperCase()];
-  
-  if (!party) {
-    return res.status(404).json({ error: 'Party not found' });
+  try {
+    const result = partyStore.joinParty(partyCode, playerName);
+    console.log(`✅ ${playerName} joined party ${partyCode}`);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    const status = error.message === 'Party not found' ? 404 : 400;
+    res.status(status).json({ error: error.message });
   }
-
-  if (party.gameState.started) {
-    return res.status(400).json({ error: 'Game already started' });
-  }
-
-  if (party.players.length >= MAX_PLAYERS) {
-    return res.status(400).json({ error: `Party is full (max ${MAX_PLAYERS} players)` });
-  }
-
-  // Check if player name already exists in party
-  const existingPlayer = party.players.find(p => p.name === playerName);
-  if (existingPlayer) {
-    return res.status(400).json({ error: 'Player name already taken in this party' });
-  }
-
-  const playerId = Date.now().toString();
-  
-  party.players.push({
-    id: playerId,
-    name: playerName,
-    isHost: false,
-    joinedAt: new Date().toISOString()
-  });
-
-  console.log(`✅ ${playerName} joined party ${partyCode}`);
-
-  res.json({
-    success: true,
-    partyCode: partyCode.toUpperCase(),
-    playerId,
-    playerName,
-    isHost: false
-  });
 });
 
 // Get party info (players list, game state)
 app.get('/api/party/:partyCode', (req, res) => {
   const { partyCode } = req.params;
-  const party = parties[partyCode.toUpperCase()];
 
-  if (!party) {
-    return res.status(404).json({ error: 'Party not found' });
+  try {
+    const party = partyStore.getParty(partyCode);
+    res.json({
+      success: true,
+      partyCode: partyCode.toUpperCase(),
+      players: party.players,
+      gameState: party.gameState,
+      createdAt: party.createdAt
+    });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
   }
-
-  res.json({
-    success: true,
-    partyCode: partyCode.toUpperCase(),
-    players: party.players,
-    gameState: party.gameState,
-    createdAt: party.createdAt
-  });
 });
 
 // Leave party
@@ -144,38 +83,90 @@ app.post('/api/party/leave', (req, res) => {
     return res.status(400).json({ error: 'Party code and player ID are required' });
   }
 
-  const party = parties[partyCode.toUpperCase()];
-  
-  if (!party) {
-    return res.status(404).json({ error: 'Party not found' });
+  try {
+    const result = partyStore.leaveParty(partyCode, playerId);
+    console.log(`👋 ${result.playerName} left party ${partyCode}`);
+    
+    if (result.deleted) {
+      console.log(`🗑️  Party ${partyCode} deleted (empty)`);
+    }
+
+    res.json({ success: true, message: 'Left party successfully' });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// ========== GAME ENDPOINTS ==========
+
+// Start game (host only recommended)
+app.post('/api/game/start', async (req, res) => {
+  const { partyCode } = req.body;
+
+  if (!partyCode) {
+    return res.status(400).json({ error: 'Party code is required' });
   }
 
-  const playerIndex = party.players.findIndex(p => p.id === playerId);
-  
-  if (playerIndex === -1) {
-    return res.status(404).json({ error: 'Player not found in party' });
+  try {
+    const roundContent = await storyEngine.generateRound(0);
+    const state = gameState.startGame(
+      partyCode,
+      roundContent.story,
+      roundContent.choices
+    );
+
+    console.log(`🎮 Game started for party ${partyCode}`);
+    res.json({ success: true, gameState: state });
+  } catch (error) {
+    const status = error.message === 'Party not found' ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// Submit a vote
+app.post('/api/game/vote', (req, res) => {
+  const { partyCode, playerId, choice } = req.body;
+
+  if (!partyCode || !playerId || !choice) {
+    return res.status(400).json({ error: 'Party code, player ID, and choice are required' });
   }
 
-  const player = party.players[playerIndex];
-  party.players.splice(playerIndex, 1);
-
-  console.log(`👋 ${player.name} left party ${partyCode}`);
-
-  // If party is empty, delete it
-  if (party.players.length === 0) {
-    delete parties[partyCode.toUpperCase()];
-    console.log(`🗑️  Party ${partyCode} deleted (empty)`);
+  try {
+    const voteCounts = votingEngine.vote(partyCode, playerId, choice);
+    res.json({ success: true, voteCounts });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: error.message });
   }
-  // If host left, assign new host
-  else if (player.isHost && party.players.length > 0) {
-    party.players[0].isHost = true;
-    console.log(`👑 ${party.players[0].name} is now host of party ${partyCode}`);
+});
+
+// Tally votes and advance to next round
+app.post('/api/game/next', async (req, res) => {
+  const { partyCode } = req.body;
+
+  if (!partyCode) {
+    return res.status(400).json({ error: 'Party code is required' });
   }
 
-  res.json({
-    success: true,
-    message: 'Left party successfully'
-  });
+  try {
+    const { winner } = votingEngine.tallyVotes(partyCode);
+    const currentRound = gameState.getCurrentRound(partyCode);
+    
+    const roundContent = await storyEngine.generateRound(currentRound, winner);
+    const state = gameState.nextRound(
+      partyCode,
+      winner,
+      roundContent.story,
+      roundContent.choices
+    );
+
+    console.log(`➡️  Party ${partyCode} moved to round ${state.currentRound}`);
+    res.json({ success: true, gameState: state });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
 });
 
 // ========== UTILITY ENDPOINTS ==========
@@ -184,24 +175,19 @@ app.post('/api/party/leave', (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok',
-    activeParties: Object.keys(parties).length,
+    activeParties: partyStore.getPartyCount(),
     timestamp: new Date().toISOString()
   });
 });
 
 // Get all active parties (for debugging)
 app.get('/api/debug/parties', (req, res) => {
-  res.json({
-    parties: Object.keys(parties).map(code => ({
-      code,
-      playerCount: parties[code].players.length,
-      players: parties[code].players.map(p => p.name)
-    }))
-  });
+  res.json({ parties: partyStore.getAllParties() });
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 Party system ready!`);
+  console.log(`🎨 Story engine: ${storyEngine.hasApiKey ? 'Gemini API' : 'Fallback mode'}`);
 });

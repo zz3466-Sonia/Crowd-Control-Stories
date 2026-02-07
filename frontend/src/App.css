@@ -8,27 +8,51 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .app-container {
   width: 100%;
-  max-width: 500px;
+  max-width: 420px;
   text-align: center;
 }
 
 /* The White Card Container */
 .screen-card {
   background: white;
-  padding: 2rem;
+  padding: 2rem 1.5rem;
   border-radius: 20px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-  min-height: 400px;
+  min-height: 500px;
+  max-height: 90vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
   border-top: 10px solid #FFC0CB; /* The Pink Accent at top */
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.screen-card > * {
+  width: 100%;
+  max-width: 320px;
+}
+
+.screen-card > .logo {
+  width: auto;
+}
+
+.screen-card > .subtitle {
+  width: auto;
+}
+
+.screen-card > p {
+  width: auto;
+  max-width: 320px;
 }
 
 /* Typography */
@@ -51,7 +75,8 @@ input {
   border: none;
   padding: 15px;
   border-radius: 12px;
-  width: 80%;
+  width: 100%;
+  max-width: 320px;
   font-size: 16px; /* Use 16px to prevent zoom on iOS */
   margin-bottom: 1rem;
   text-align: center;
@@ -62,6 +87,7 @@ input {
   -webkit-appearance: none; /* Remove iOS default styling */
   appearance: none;
   letter-spacing: 0.5px; /* Smooth character spacing */
+  box-sizing: border-box;
 }
 
 /* Buttons */
@@ -75,7 +101,8 @@ input {
   font-weight: bold;
   cursor: pointer;
   margin: 10px 0;
-  width: 80%;
+  width: 100%;
+  max-width: 320px;
   transition: transform 0.1s;
   font-family: 'Fredoka One', cursive;
 }
@@ -102,6 +129,7 @@ input {
 /* Lobby List */
 .player-list {
   width: 100%;
+  max-width: 320px;
   display: grid;
   grid-template-columns: 1fr 1fr; /* 2 Columns like design */
   gap: 10px;
@@ -114,6 +142,7 @@ input {
   border-radius: 8px;
   font-weight: bold;
   font-size: 0.9rem;
+  text-align: center;
 }
 
 .host-chip {
@@ -130,10 +159,27 @@ input {
   margin: 8px 0;
   border-radius: 12px;
   width: 100%;
+  max-width: 320px;
   cursor: pointer;
   font-weight: bold;
+  box-sizing: border-box;
 }
 .choice-btn:hover {
   background: #87CEEB;
   color: white;
+}
+
+/* Game Screen Specific Styles */
+.screen-card h3 {
+  margin: 10px 0;
+  color: #2c3e50;
+  font-size: 1.2rem;
+  text-align: center;
+  width: 100%;
+}
+
+.screen-card .player-list,
+.screen-card input,
+.screen-card .btn-primary {
+  align-self: center;
 }

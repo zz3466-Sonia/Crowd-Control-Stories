@@ -343,26 +343,26 @@ export default function App() {
 
   // 6. GAME SCREEN (The Story)
   const GameScreen = () => (
-    <div className="screen-card" style={{alignItems: 'flex-start', textAlign: 'left'}}>
-      <h1 className="logo" style={{fontSize: '1.2rem'}}>CROWDSTORY</h1>
+    <div className="screen-card">
+      <h1 className="logo" style={{fontSize: '1.2rem', alignSelf: 'center'}}>CROWDSTORY</h1>
 
       {gameState?.lastWinner && (
-        <p style={{ marginTop: '10px', color: '#2c3e50' }}>
+        <p style={{ marginTop: '10px', color: '#2c3e50', alignSelf: 'center' }}>
           Last round winner: {gameState.lastWinner}
         </p>
       )}
 
-      <p style={{ marginTop: '10px', color: '#888' }}>
+      <p style={{ marginTop: '10px', color: '#888', alignSelf: 'center' }}>
         Round {gameState?.currentRound || 1} • Time left: {timer}s
       </p>
 
       {/* Story Text */}
-      <div style={{fontSize: '1.2rem', margin: '20px 0', lineHeight: '1.5'}}>
+      <div style={{fontSize: '1rem', margin: '20px 0', lineHeight: '1.5', maxWidth: '320px', textAlign: 'left'}}>
         {gameState?.currentStory || 'Loading story...'}
       </div>
 
       {/* Choices */}
-      <div style={{width: '100%', marginTop: 'auto'}}>
+      <div style={{width: '100%', maxWidth: '320px', marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
         {(gameState?.currentChoices || []).map((choice) => {
           const label = choice?.trim().charAt(0).toUpperCase();
           const count = voteCounts[label] ?? 0;

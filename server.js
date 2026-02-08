@@ -115,7 +115,7 @@ app.post('/api/game/start', async (req, res) => {
       party.storyTheme = theme;  // Set chosen theme
     }
     
-    const roundContent = await storyEngine.generateRound(0, null, party.storyTheme);
+    const roundContent = await storyEngine.generateRound(0, null, party.storyTheme, '');
     const state = gameState.startGame(
       partyCode,
       roundContent.story,
@@ -161,7 +161,8 @@ app.post('/api/game/next', async (req, res) => {
     const party = partyStore.getParty(partyCode);
     const theme = party.storyTheme || 'scifi';
     
-    const roundContent = await storyEngine.generateRound(currentRound, winner, theme);
+    const previousStory = party.gameState.currentStory || '';
+    const roundContent = await storyEngine.generateRound(currentRound, winner, theme, previousStory);
     const state = gameState.nextRound(
       partyCode,
       winner,

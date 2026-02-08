@@ -6,30 +6,75 @@ const https = require('https');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
-// Fallback story rounds
-const STORY_ROUNDS = [
-  {
-    story: 'The astronaut, the AI, and the alien meet in a silent space station. The AI warns of an unknown signal.',
-    choices: ['A) Trust the AI', 'B) Question the AI', 'C) Contact the alien']
-  },
-  {
-    story: 'The signal grows louder. The alien reveals a hidden hatch. The astronaut hesitates.',
-    choices: ['A) Open the hatch', 'B) Ask for proof', 'C) Walk away']
-  },
-  {
-    story: 'A strange light spills out. The AI begins to glitch. The alien offers a deal.',
-    choices: ['A) Accept the deal', 'B) Refuse and run', 'C) Shut down the AI']
-  }
-];
+// Fallback story rounds by theme
+const STORY_ROUNDS = {
+  scifi: [
+    {
+      story: 'The astronaut, the AI, and the alien meet in a silent space station. The AI warns of an unknown signal.',
+      choices: ['A) Trust the AI', 'B) Question the AI', 'C) Contact the alien']
+    },
+    {
+      story: 'The signal grows louder. The alien reveals a hidden hatch. The astronaut hesitates.',
+      choices: ['A) Open the hatch', 'B) Ask for proof', 'C) Walk away']
+    },
+    {
+      story: 'A strange light spills out. The AI begins to glitch. The alien offers a deal.',
+      choices: ['A) Accept the deal', 'B) Refuse and run', 'C) Shut down the AI']
+    }
+  ],
+  romance: [
+    {
+      story: 'Two Columbia undergrads lock eyes across the library table at Butler. An awkward moment stretches between them. Neither looks away.',
+      choices: ['A) Smile and open up', 'B) Pretend to study', 'C) Friend texts—leave']
+    },
+    {
+      story: 'Coffee after class. They talk about everything except what matters. The rain starts outside. They stay inside.',
+      choices: ['A) Share headphones walking', 'B) Say goodbye quickly', 'C) Phone rings—family call']
+    },
+    {
+      story: 'Late night on College Walk. The city glows around them. A moment of silence that says everything.',
+      choices: ['A) Take their hand', 'B) Keep hands in pockets', 'C) Roommate catches up to them']
+    }
+  ],
+  mystery: [
+    {
+      story: 'A detective arrives at a quiet coastal town. A mysterious package arrives at the harbor. No one claims it.',
+      choices: ['A) Open the package', 'B) Question the dock workers', 'C) Wait for more clues']
+    },
+    {
+      story: 'The suspect suddenly appears at the café. They seem nervous. The witness from earlier walks in.',
+      choices: ['A) Confront them directly', 'B) Follow them discreetly', 'C) Interview the witness']
+    },
+    {
+      story: 'A hidden letter is discovered in the old library. It changes everything. The plot thickens.',
+      choices: ['A) Demand answers', 'B) Do more investigation', 'C) Contact the authorities']
+    }
+  ],
+  adventure: [
+    {
+      story: 'The explorer discovers an ancient temple deep in the jungle. Strange markings glow on the walls. Your companions look nervous.',
+      choices: ['A) Enter the temple', 'B) Set up camp outside', 'C) Search the perimeter first']
+    },
+    {
+      story: 'A treasure chest appears before you. But the ground beneath is trembling. The guide hesitates.',
+      choices: ['A) Grab the treasure', 'B) Run for higher ground', 'C) Help your companion']
+    },
+    {
+      story: 'You stand at a crossroads. One path glows with ancient light. The other is shrouded in darkness.',
+      choices: ['A) Choose the light', 'B) Choose the darkness', 'C) Ask for the guide\'s wisdom']
+    }
+  ]
+};
 
 class StoryEngine {
   constructor() {
     this.hasApiKey = !!GEMINI_API_KEY;
   }
 
-  // Get fallback story round
-  getFallbackRound(roundIndex) {
-    const fallback = STORY_ROUNDS[roundIndex % STORY_ROUNDS.length];
+  // Get fallback story round for specific theme
+  getFallbackRound(roundIndex, theme = 'scifi') {
+    const themeStories = STORY_ROUNDS[theme] || STORY_ROUNDS.scifi;
+    const fallback = themeStories[roundIndex % themeStories.length];
     return {
       story: fallback.story,
       choices: fallback.choices
@@ -184,9 +229,12 @@ class StoryEngine {
     ].join('\n');
   }
 
-  // Parse JSON from Gemini response
+  // Parse JSON from Gemini response (handles code blocks)
   safeParseJSON(text) {
-    const match = text.match(/\{[\s\S]*\}/);
+    // Remove markdown code block markers if present
+    let cleanText = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    
+    const match = cleanText.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
       return JSON.parse(match[0]);
@@ -198,8 +246,8 @@ class StoryEngine {
   // Generate story content (with API or fallback)
   async generateRound(roundIndex, previousChoice, theme = 'scifi') {
     if (!this.hasApiKey) {
-      console.log('⚠️  No API key, using fallback story');
-      return this.getFallbackRound(roundIndex);
+      console.log(`⚠️  No API key, using fallback ${theme} story`);
+      return this.getFallbackRound(roundIndex, theme);
     }
 
     try {
@@ -222,8 +270,8 @@ class StoryEngine {
       const parsed = this.safeParseJSON(text);
 
       if (!parsed || !parsed.story || !Array.isArray(parsed.choices)) {
-        console.log('⚠️  API returned invalid format, using fallback');
-        return this.getFallbackRound(roundIndex);
+        console.log(`⚠️  API returned invalid format for ${theme}, using fallback`);
+        return this.getFallbackRound(roundIndex, theme);
       }
 
       const cleanedChoices = parsed.choices
@@ -231,8 +279,8 @@ class StoryEngine {
         .slice(0, 3);
 
       if (cleanedChoices.length !== 3) {
-        console.log('⚠️  Invalid choices count, using fallback');
-        return this.getFallbackRound(roundIndex);
+        console.log(`⚠️  Invalid choices count for ${theme}, using fallback`);
+        return this.getFallbackRound(roundIndex, theme);
       }
 
       console.log(`✅ Generated ${theme} story via Gemini API`);
@@ -241,9 +289,9 @@ class StoryEngine {
         choices: cleanedChoices
       };
     } catch (err) {
-      console.error('❌ Gemini API error:', err.message || err);
-      console.log('↩️  Falling back to offline story');
-      return this.getFallbackRound(roundIndex);
+      console.error(`❌ Gemini API error for ${theme}:`, err.message || err);
+      console.log(`↩️  Falling back to offline ${theme} story`);
+      return this.getFallbackRound(roundIndex, theme);
     }
   }
 

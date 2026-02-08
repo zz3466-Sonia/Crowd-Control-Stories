@@ -206,6 +206,13 @@ export default function App() {
       if (data.error && data.error !== 'No API key') {
         setImageError(data.error);
       }
+      // Scroll to choices after image loads
+      setTimeout(() => {
+        const choicesSection = document.querySelector('.choices-section');
+        if (choicesSection) {
+          choicesSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
     } catch (err) {
       // Only show critical errors, not image generation failures
       if (!err.message.includes('Image') && !err.message.includes('Empty response')) {
@@ -535,10 +542,9 @@ export default function App() {
         {displayedText || 'Loading story...'}
       </div>
 
-      {(imageLoading || imageError || imageUrl) && (
+      {(imageLoading || imageUrl) && (
         <div style={{ margin: '10px 0', width: '100%', maxWidth: '320px' }}>
           {imageLoading && <p style={{ color: '#888' }}>Generating image...</p>}
-          {imageError && <p style={{ color: '#c0392b' }}>{imageError}</p>}
           {imageUrl && (
             <img
               src={imageUrl}
@@ -550,15 +556,15 @@ export default function App() {
       )}
 
       {/* Choices */}
-      <div style={{width: '100%', maxWidth: '320px', marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+      <div className="choices-section" style={{width: '100%', maxWidth: '320px', marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
         {(gameState?.currentChoices || []).map((choice) => {
           const label = choice?.trim().charAt(0).toUpperCase();
           const count = voteCounts[label] ?? 0;
           return (
             <button
               key={choice}
-              className="choice-btn"
               onClick={() => submitVote(label)}
+              className="choice-btn"
               style={{
                 background: colors.secondary,
                 borderColor: colors.primary,

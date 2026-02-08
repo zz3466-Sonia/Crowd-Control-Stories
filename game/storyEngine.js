@@ -116,7 +116,7 @@ class StoryEngine {
     const storyContext = previousStory
       ? `PREVIOUS STORY:\n${previousStory}\n\nPLAYERS CHOSE: ${previousChoice || 'No choice provided'}\n\n⚠️ IMPORTANT: Start with ONE short sentence that mentions the choice above, then continue the story.`
       : 'START: The signal appears on the silent space station. Introduce the three characters and the mysterious signal.';
-    
+
     return [
       '=== INTERACTIVE SCI-FI STORY GENERATOR ===',
       'THREE CHARACTERS:',
@@ -151,7 +151,7 @@ class StoryEngine {
     const storyContext = previousStory
       ? `PREVIOUS STORY:\n${previousStory}\n\nPLAYERS CHOSE: ${previousChoice || 'No choice provided'}\n\n⚠️ IMPORTANT: Start with ONE short sentence that mentions the choice above, then continue the story.`
       : 'START: Two Columbia students meet in an ordinary campus moment. Make it feel real and slightly awkward.';
-    
+
     return [
       '=== ROMANTIC CAMPUS STORY ===',
       'Columbia University setting. Two students (20-22). Real college life.',
@@ -183,7 +183,7 @@ class StoryEngine {
     const storyContext = previousStory
       ? `PREVIOUS STORY:\n${previousStory}\n\nPLAYERS CHOSE: ${previousChoice || 'No choice provided'}\n\n⚠️ IMPORTANT: Start with ONE short sentence that mentions the choice above, then continue the story.`
       : 'START: A detective makes a curious discovery in a coastal town. Introduce the mystery.';
-    
+
     return [
       '=== MYSTERY STORY ===',
       'Detective, suspect, witness in a coastal town.',
@@ -215,7 +215,7 @@ class StoryEngine {
     const storyContext = previousStory
       ? `PREVIOUS STORY:\n${previousStory}\n\nPLAYERS CHOSE: ${previousChoice || 'No choice provided'}\n\n⚠️ IMPORTANT: Start with ONE short sentence that mentions the choice above, then continue the story.`
       : 'START: An explorer, companion, and guide face danger in an exotic world. Begin the adventure.';
-    
+
     return [
       '=== ADVENTURE STORY ===',
       'Explorer, companion, guide in a dangerous world.',
@@ -247,7 +247,7 @@ class StoryEngine {
   safeParseJSON(text) {
     // Remove markdown code block markers if present
     let cleanText = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    
+
     const match = cleanText.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
@@ -283,6 +283,26 @@ class StoryEngine {
     return trimmed.replace(/[.,!?]?$/, '.');
   }
 
+  normalizeChoice(choice) {
+    if (!choice) return '';
+    const text = String(choice).trim();
+    return text.replace(/^[A-C]\)\s*/i, '').trim();
+  }
+
+  ensureChoiceLeadIn(story, previousChoice) {
+    if (!previousChoice) return story;
+    const choiceText = this.normalizeChoice(previousChoice);
+    if (!choiceText) return story;
+    const firstSentence = story.split(/(?<=[.!?])\s+/)[0] || '';
+    const lowerFirst = firstSentence.toLowerCase();
+    const lowerChoice = choiceText.toLowerCase();
+    if (lowerFirst.includes(lowerChoice)) {
+      return story;
+    }
+    const lead = `They chose to ${choiceText.replace(/^[a-z]/, (c) => c.toLowerCase())}.`;
+    return `${lead} ${story}`.trim();
+  }
+
   // Generate story content (with API or fallback)
   async generateRound(roundIndex, previousChoice, theme = 'scifi', previousStory = '') {
     if (!this.hasApiKey || !this.client) {
@@ -292,8 +312,7 @@ class StoryEngine {
 
     try {
       const prompt = this.buildPrompt(roundIndex, previousChoice, theme, previousStory);
-      
-      let lastError = null;
+
       let parsed = null;
 
       for (const model of DEDALUS_MODEL_FALLBACKS) {
@@ -311,10 +330,9 @@ class StoryEngine {
 
           const text = completion.choices[0]?.message?.content;
           if (!text) continue;
-          
+
           parsed = this.safeParseJSON(text);
           if (parsed && parsed.story && Array.isArray(parsed.choices)) {
-            // Enforce 50 word limit
             const wordCount = this.countWords(parsed.story);
             if (wordCount > 50) {
               parsed.story = this.enforceWordLimit(parsed.story, 50);
@@ -325,7 +343,6 @@ class StoryEngine {
             break;
           }
         } catch (err) {
-          lastError = err;
           console.log(`⚠️  Model ${model} failed: ${err.message}`);
           continue;
         }
@@ -345,8 +362,13 @@ class StoryEngine {
         return this.getFallbackRound(roundIndex, theme);
       }
 
+      let finalStory = String(parsed.story);
+      if (previousStory && previousChoice) {
+        finalStory = this.ensureChoiceLeadIn(finalStory, previousChoice);
+      }
+
       return {
-        story: String(parsed.story),
+        story: finalStory,
         choices: cleanedChoices
       };
     } catch (err) {

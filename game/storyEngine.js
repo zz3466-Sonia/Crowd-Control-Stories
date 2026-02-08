@@ -1,10 +1,17 @@
-// Story generation engine using Gemini API or fallback
+// Story generation engine using Dedalus AI API or fallback
 
-const https = require('https');
+const Dedalus = require('dedalus-labs').default;
 
 // Configuration
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+const DEDALUS_API_KEY = process.env.DEDALUS_API_KEY;
+const DEDALUS_MODEL = process.env.DEDALUS_MODEL || 'anthropic/claude-sonnet-4-20250514';
+const DEDALUS_MODEL_FALLBACKS = [
+  DEDALUS_MODEL,
+  'anthropic/claude-opus-4-6',
+  'openai/gpt-4o',
+  'google/gemini-1.5-pro',
+  'xai/grok-2-latest'
+].filter((value, index, self) => value && self.indexOf(value) === index);
 
 // Fallback story rounds by theme
 const STORY_ROUNDS = {
@@ -68,168 +75,163 @@ const STORY_ROUNDS = {
 
 class StoryEngine {
   constructor() {
-    this.hasApiKey = !!GEMINI_API_KEY;
+    this.initializeClient();
+  }
+
+  initializeClient() {
+    const apiKey = process.env.DEDALUS_API_KEY;
+    if (apiKey) {
+      this.hasApiKey = true;
+      this.client = new Dedalus({ apiKey });
+      console.log('🎨 Story engine: Dedalus AI API');
+    } else {
+      this.hasApiKey = false;
+      this.client = null;
+      console.log('⚠️  Story engine: Using fallback stories (no API key)');
+    }
+  }
+
+  buildFallbackBranch(theme, previousChoice, roundIndex) {
+    const byTheme = {
+      scifi: {
+        A: ['The astronaut trusts the AI and follows its warning deeper into the station.', 'The AI takes control and guides them toward the signal source.'],
+        B: ['The astronaut questions the AI, forcing it to reveal hidden logs.', 'The AI hesitates, and the alien grows more uneasy.'],
+        C: ['The astronaut addresses the alien, who hints at a breach nearby.', 'The alien steps forward, revealing a sealed hatch.']
+      },
+      romance: {
+        A: ['They open up a little, and the air feels warmer between them.', 'A small confession slips out, changing the mood.'],
+        B: ['They keep it light, but the distance is noticeable.', 'A polite silence returns as they hold back.'],
+        C: ['An interruption breaks the moment, leaving things unsaid.', 'The campus noise cuts in, and the chance slips by.']
+      },
+      mystery: {
+        A: ['They dig deeper and uncover a clue tied to the suspect.', 'A hidden detail links the case to the harbor.'],
+        B: ['They follow intuition and spot a pattern in the witness\' story.', 'A hunch points to a familiar face nearby.'],
+        C: ['A secret surfaces, casting doubt on earlier testimony.', 'A locked drawer hints at a quiet cover‑up.']
+      },
+      adventure: {
+        A: ['They take the risky path, and the ground trembles beneath them.', 'A daring move reveals a new passage.'],
+        B: ['They play it safe, but danger circles closer.', 'Caution buys time, though the threat grows.'],
+        C: ['They trust instincts and find a hidden route.', 'A bold hunch leads to an unexpected ally.']
+      }
+    };
+
+    const options = byTheme[theme]?.[previousChoice] || [];
+    if (!options.length) return '';
+    return options[roundIndex % options.length];
+  }
+
+  buildFallbackContinuation(theme, previousChoice) {
+    const flavor = {
+      scifi: 'The signal shifts again, hinting at a deeper trap.',
+      romance: 'A small pause lingers between them as the moment stretches.',
+      mystery: 'A fresh clue surfaces, complicating the case.',
+      adventure: 'The path shifts and a new hazard reveals itself.'
+    };
+
+    const choiceLine = previousChoice
+      ? `They follow choice ${previousChoice}, and the tension rises.`
+      : 'A new turn unfolds without warning.';
+
+    return `${choiceLine} ${flavor[theme] || flavor.scifi}`;
   }
 
   // Get fallback story round for specific theme
-  getFallbackRound(roundIndex, theme = 'scifi') {
+  getFallbackRound(roundIndex, theme = 'scifi', previousChoice = null) {
     const themeStories = STORY_ROUNDS[theme] || STORY_ROUNDS.scifi;
-    const fallback = themeStories[roundIndex % themeStories.length];
+    const fallback = themeStories[Math.min(roundIndex, themeStories.length - 1)];
+    const needsContinuation = roundIndex >= themeStories.length;
+    const branch = previousChoice ? this.buildFallbackBranch(theme, previousChoice, roundIndex) : '';
     return {
-      story: fallback.story,
+      story: needsContinuation
+        ? `${fallback.story} ${this.buildFallbackContinuation(theme, previousChoice)} ${branch}`.trim()
+        : `${fallback.story} ${branch}`.trim(),
       choices: fallback.choices
     };
   }
 
-  // Build Gemini prompt based on story theme
-  buildPrompt(roundIndex, previousChoice, theme = 'scifi') {
+  // Build prompt based on story theme
+  buildPrompt(roundIndex, previousChoice, theme = 'scifi', previousStory = '') {
     const prompts = {
-      scifi: this.buildSciFiPrompt(roundIndex, previousChoice),
-      romance: this.buildRomancePrompt(roundIndex, previousChoice),
-      mystery: this.buildMysteryPrompt(roundIndex, previousChoice),
-      adventure: this.buildAdventurePrompt(roundIndex, previousChoice)
+      scifi: this.buildSciFiPrompt(roundIndex, previousChoice, previousStory),
+      romance: this.buildRomancePrompt(roundIndex, previousChoice, previousStory),
+      mystery: this.buildMysteryPrompt(roundIndex, previousChoice, previousStory),
+      adventure: this.buildAdventurePrompt(roundIndex, previousChoice, previousStory)
     };
     return prompts[theme] || prompts.scifi;
   }
 
-  buildSciFiPrompt(roundIndex, previousChoice) {
-    return [
-      '=== INTERACTIVE SCI-FI STORY GENERATOR ===',
-      'You are continuing an interactive sci-fi story with THREE CHARACTERS:',
-      '- An astronaut (human explorer)',
-      '- An AI (advanced artificial intelligence)',
-      '- An alien (mysterious extraterrestrial)',
-      '',
-      'SETTING: They are on a silent space station where an unknown signal has appeared.',
-      '',
-      'THEME: Maintain suspense, mystery, and sci-fi atmosphere throughout.',
-      'Keep the same three characters in every scene.',
-      '',
-      `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}" in the last round. Continue the story based on this choice.` : 'This is the first round. Start the story.',
-      '',
-      'OUTPUT FORMAT (JSON ONLY):',
-      '{',
-      '  "story": "A short scene description (50-70 words). Show what the characters do/say based on the previous choice.",',
-      '  "choices": [',
-      '    "A) [Action option related to astronaut]",',
-      '    "B) [Action option related to AI]",',
-      '    "C) [Action option related to alien]"',
-      '  ]',
-      '}',
-      '',
-      'CRITICAL RULES:',
-      '- Write ONLY in English (no other languages)',
-      '- Story must be 50-70 words',
-      '- Choices must start with A), B), C)',
-      '- Each choice <= 12 words',
-      '- Keep sci-fi theme consistent',
-      '- Return ONLY the JSON, no extra text'
-    ].join('\n');
+  buildSciFiPrompt(roundIndex, previousChoice, previousStory) {
+    const continuity = previousStory
+      ? `Previous story: "${previousStory}" Continue directly from it without resetting.`
+      : 'This is round 1. Begin the story.';
+    const choiceLine = previousChoice ? `The audience chose "${previousChoice}" in round ${roundIndex}. Continue from that choice.` : '';
+    const context = `${continuity} ${choiceLine}`.trim();
+    return `Write a simple sci-fi story with 3 characters: an astronaut, an AI, and an alien on a space station. ${context} 
+    REQUIREMENTS: 
+    - EXACTLY 40-50 words (no more than 50)
+    - Use simple words a child could understand
+    - Short sentences only (max 10 words per sentence)
+    - No fancy descriptions
+    - Return ONLY this JSON:
+    {"story": "[YOUR STORY]", "choices": ["A) [simple action]", "B) [simple action]", "C) [simple action]"]}
+    Example: "The signal beeps. The astronaut looks worried. The AI says something is wrong. The alien points at a door."`;
   }
 
-  buildRomancePrompt(roundIndex, previousChoice) {
-    return [
-      '=== INTERACTIVE ROMANTIC STORY GENERATOR ===',
-      'You are a COLUMBIA UNIVERSITY CAMPUS STORY GENERATOR:',
-      '- This is a slice-of-life romantic story set at Columbia University. No AI. No sci-fi. No fantasy. Everything must feel REAL.',
-      '- Female protagonist: Undergraduate at Columbia (20-22), intelligent, slightly guarded, emotionally self-aware.',
-      '- Male protagonist: Undergraduate at Columbia (20-22), calm, low-key confident, shows care through small actions.',
-      '- Interrupter/catalyst: A realistic campus element (mutual friend, deadline, class, dining hall, weather, timing).',
-      '',
-      'SETTING: Real Columbia University locations (Butler Library, Dodge Hall, John Jay dining, College Walk, Low Library steps).',
-      '',
-      'THEME: Grounded campus realism with subtle slow-burn romance. Tension through proximity, timing, and silence.',
-      'TONE: Contemporary college life; slightly awkward; emotionally restrained; realistic for Ivy League students.',
-      '',
-      `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". Continue naturally from this decision.` : 'This is round 1. Begin with an ordinary Columbia moment that feels insignificant but emotionally charged.',
-      '',
-      'STORY REQUIREMENTS:',
-      '- 60-90 words. Focus on small moments (eye contact, walking together, shared food, sitting quietly).',
-      '- Include one subtle romantic beat (hesitation, unspoken thought, missed chance).',
-      '- The interrupter must affect the scene (delay, awkwardness, or push).',
-      '',
-      'CHOICES DESIGN:',
-      '- A) Emotional risk or closeness (staying longer, opening up, sharing something)',
-      '- B) Staying rational/guarded (leaving, studying, keeping distance)',
-      '- C) External interruption (friend, event, schedule, campus situation intervenes)',
-      '',
-      'OUTPUT FORMAT (JSON ONLY):',
-      '{',
-      '  "story": "A short, cinematic campus scene with subtle emotional tension.",',
-      '  "choices": [',
-      '    "A) [Emotion-forward: stay longer, open up slightly, share something small]",',
-      '    "B) [Practical: leave, study, keep distance, stay neutral]",',
-      '    "C) [Interruption: friend, event, schedule intervenes]"',
-      '  ]',
-      '}',
-      '',
-      'Return ONLY the JSON, no extra text.'
-    ].join('\n');
+  buildRomancePrompt(roundIndex, previousChoice, previousStory) {
+    const continuity = previousStory
+      ? `Previous story: "${previousStory}" Continue directly from it without resetting.`
+      : 'Round 1. Begin with a simple Columbia moment.';
+    const choiceLine = previousChoice ? `The audience chose "${previousChoice}" in round ${roundIndex}. Continue from that choice.` : '';
+    const context = `${continuity} ${choiceLine}`.trim();
+    return `Write a simple romance story about two college students at Columbia. ${context}
+    REQUIREMENTS:
+    - EXACTLY 40-50 words (no more than 50)
+    - Use simple words a child could understand
+    - Short sentences only (max 10 words per sentence)
+    - No fancy descriptions
+    - Return ONLY this JSON:
+    {"story": "[YOUR STORY]", "choices": ["A) [simple choice]", "B) [simple choice]", "C) [simple choice]"]}
+
+    Example: "Maya studies at the library. Ethan sits next to her. They smile. Their hands almost touch."`;
   }
 
-  buildMysteryPrompt(roundIndex, previousChoice) {
-    return [
-      '=== INTERACTIVE MYSTERY STORY GENERATOR ===',
-      'You are crafting an interactive mystery with THREE CHARACTERS:',
-      '- A detective (sharp-minded investigator)',
-      '- A suspect (with secrets to hide)',
-      '- A witness (knows more than they are saying)',
-      '',
-      'SETTING: A small coastal town with hidden connections and secrets.',
-      '',
-      'THEME: Build suspense and intrigue. Each clue leads to more questions.',
-      'Keep the same three characters and maintain continuity.',
-      '',
-      `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". This clue or action drives the investigation forward.` : 'This is round 1. Begin with a curious discovery or an unexpected encounter.',
-      '',
-      'OUTPUT FORMAT (JSON ONLY):',
-      '{',
-      '  "story": "A 50-70 word scene revealing clues, motives, or unexpected twists.",',
-      '  "choices": [',
-      '    "A) [Investigate deeper]",',
-      '    "B) [Trust intuition]",',
-      '    "C) [Uncover a secret]"',
-      '  ]',
-      '}',
-      '',
-      'Return ONLY the JSON, no extra text.'
-    ].join('\n');
+  buildMysteryPrompt(roundIndex, previousChoice, previousStory) {
+    const continuity = previousStory
+      ? `Previous story: "${previousStory}" Continue directly from it without resetting.`
+      : 'Round 1. Begin with something mysterious.';
+    const choiceLine = previousChoice ? `The audience chose "${previousChoice}" in round ${roundIndex}. Continue the mystery.` : '';
+    const context = `${continuity} ${choiceLine}`.trim();
+    return `Write a simple mystery story with a detective, a suspect, and a witness. ${context}
+    REQUIREMENTS:
+    - EXACTLY 40-50 words (no more than 50)
+    - Use simple words a child could understand
+    - Short sentences only (max 10 words per sentence)
+    - No fancy descriptions
+    - Return ONLY this JSON:
+    {"story": "[YOUR STORY]", "choices": ["A) [simple action]", "B) [simple action]", "C) [simple action]"]}
+
+    Example: "A box appears on the table. Nobody knows who put it there. The detective looks inside. There is a note."`;
   }
 
-  buildAdventurePrompt(roundIndex, previousChoice) {
-    return [
-      '=== INTERACTIVE ADVENTURE STORY GENERATOR ===',
-      'You are creating an interactive adventure with THREE CHARACTERS:',
-      '- A brave explorer (resourceful and quick-thinking)',
-      '- A loyal companion (steady and loyal)',
-      '- A mysterious guide (knows the secrets of this world)',
-      '',
-      'SETTING: An exotic, dangerous world full of wonder and peril.',
-      '',
-      'THEME: Action, discovery, and survival. Each choice has real consequences.',
-      'Keep the same three characters and maintain the adventure momentum.',
-      '',
-      `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". This action shapes the adventure ahead.` : 'This is round 1. Begin with an exciting moment of discovery or danger.',
-      '',
-      'OUTPUT FORMAT (JSON ONLY):',
-      '{',
-      '  "story": "A 50-70 word scene full of action, discovery, or danger.",',
-      '  "choices": [',
-      '    "A) [Take the risky path]",',
-      '    "B) [Play it safe]",',
-      '    "C) [Follow your instincts]"',
-      '  ]',
-      '}',
-      '',
-      'Return ONLY the JSON, no extra text.'
-    ].join('\n');
+  buildAdventurePrompt(roundIndex, previousChoice, previousStory) {
+    const continuity = previousStory
+      ? `Previous story: "${previousStory}" Continue directly from it without resetting.`
+      : 'Round 1. Begin with something exciting.';
+    const choiceLine = previousChoice ? `The audience chose "${previousChoice}" in round ${roundIndex}. Continue the adventure.` : '';
+    const context = `${continuity} ${choiceLine}`.trim();
+    return `Write a simple adventure story with an explorer, a companion, and a guide. ${context}
+    REQUIREMENTS:
+    - EXACTLY 40-50 words (no more than 50)
+    - Use simple words a child could understand
+    - Short sentences only (max 10 words per sentence)
+    - No fancy descriptions
+    - Return ONLY this JSON:
+    {"story": "[YOUR STORY]", "choices": ["A) [simple choice]", "B) [simple choice]", "C) [simple choice]"]}
+
+    Example: "The explorer finds a cave. It is dark inside. The guide says go in. The companion is scared."`;
   }
 
-  // Parse JSON from Gemini response (handles code blocks)
+  // Parse JSON from AI response (handles code blocks)
   safeParseJSON(text) {
     // Remove markdown code block markers if present
     let cleanText = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
@@ -243,35 +245,83 @@ class StoryEngine {
     }
   }
 
+  // Count words in text
+  countWords(text) {
+    return text.trim().split(/\s+/).length;
+  }
+
+  // Enforce word limit without awkward cut-offs
+  enforcWordLimit(story, maxWords = 50) {
+    const words = story.trim().split(/\s+/);
+    if (words.length <= maxWords) {
+      return story;
+    }
+
+    const trimmed = words.slice(0, maxWords).join(' ');
+    const lastStop = Math.max(
+      trimmed.lastIndexOf('.'),
+      trimmed.lastIndexOf('!'),
+      trimmed.lastIndexOf('?')
+    );
+
+    if (lastStop > 20) {
+      return trimmed.slice(0, lastStop + 1);
+    }
+
+    return trimmed.replace(/[.,!?]?$/, '.')
+  }
+
   // Generate story content (with API or fallback)
-  async generateRound(roundIndex, previousChoice, theme = 'scifi') {
-    if (!this.hasApiKey) {
-      console.log(`⚠️  No API key, using fallback ${theme} story`);
-      return this.getFallbackRound(roundIndex, theme);
+  async generateRound(roundIndex, previousChoice, theme = 'scifi', previousStory = '') {
+    if (!this.hasApiKey || !this.client) {
+      // Silently use fallback (no warning)
+      return this.getFallbackRound(roundIndex, theme, previousChoice);
     }
 
     try {
-      const prompt = this.buildPrompt(roundIndex, previousChoice, theme);
+      const prompt = this.buildPrompt(roundIndex, previousChoice, theme, previousStory);
       
-      // Use REST API instead of SDK to avoid encoding issues
-      const requestBody = {
-        contents: [{
-          role: 'user',
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024
-        }
-      };
+      let lastError = null;
+      let parsed = null;
 
-      const result = await this.callGeminiAPI(requestBody);
-      const text = result;
-      const parsed = this.safeParseJSON(text);
+      for (const model of DEDALUS_MODEL_FALLBACKS) {
+        try {
+          console.log(`🤖 Trying model: ${model}`);
+          const completion = await this.client.chat.completions.create({
+            model: model,
+            messages: [
+              { role: 'system', content: 'You are a creative storyteller. Always respond with valid JSON only.' },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+          });
+
+          const text = completion.choices[0]?.message?.content;
+          if (!text) continue;
+          
+          parsed = this.safeParseJSON(text);
+          if (parsed && parsed.story && Array.isArray(parsed.choices)) {
+            // Enforce 50 word limit
+            const wordCount = this.countWords(parsed.story);
+            if (wordCount > 50) {
+              parsed.story = this.enforcWordLimit(parsed.story, 50);
+              console.log(`✅ Generated ${theme} story via ${model} (truncated to 50 words)`);
+            } else {
+              console.log(`✅ Generated ${theme} story via ${model} (${wordCount} words)`);
+            }
+            break;
+          }
+        } catch (err) {
+          lastError = err;
+          console.log(`⚠️  Model ${model} failed: ${err.message}`);
+          continue;
+        }
+      }
 
       if (!parsed || !parsed.story || !Array.isArray(parsed.choices)) {
-        console.log(`⚠️  API returned invalid format for ${theme}, using fallback`);
-        return this.getFallbackRound(roundIndex, theme);
+        console.log(`⚠️  All models failed or returned invalid format for ${theme}, using fallback`);
+        return this.getFallbackRound(roundIndex, theme, previousChoice);
       }
 
       const cleanedChoices = parsed.choices
@@ -280,68 +330,18 @@ class StoryEngine {
 
       if (cleanedChoices.length !== 3) {
         console.log(`⚠️  Invalid choices count for ${theme}, using fallback`);
-        return this.getFallbackRound(roundIndex, theme);
+        return this.getFallbackRound(roundIndex, theme, previousChoice);
       }
 
-      console.log(`✅ Generated ${theme} story via Gemini API`);
       return {
         story: String(parsed.story),
         choices: cleanedChoices
       };
     } catch (err) {
-      console.error(`❌ Gemini API error for ${theme}:`, err.message || err);
+      console.error(`❌ Dedalus API error for ${theme}:`, err.message || err);
       console.log(`↩️  Falling back to offline ${theme} story`);
-      return this.getFallbackRound(roundIndex, theme);
+      return this.getFallbackRound(roundIndex, theme, previousChoice);
     }
-  }
-
-  // Call Gemini API via REST
-  callGeminiAPI(requestBody) {
-    return new Promise((resolve, reject) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-      
-      const options = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: 5000
-      };
-
-      const req = https.request(url, options, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            console.log('API Response:', JSON.stringify(parsed).substring(0, 200));
-            
-            if (parsed.error) {
-              reject(new Error(`API Error: ${parsed.error.message}`));
-              return;
-            }
-            
-            if (parsed.candidates && parsed.candidates[0] && parsed.candidates[0].content) {
-              const text = parsed.candidates[0].content.parts[0].text;
-              resolve(text);
-            } else {
-              reject(new Error('Invalid API response structure'));
-            }
-          } catch (e) {
-            reject(e);
-          }
-        });
-      });
-
-      req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('API timeout'));
-      });
-
-      req.write(JSON.stringify(requestBody));
-      req.end();
-    });
   }
 }
 

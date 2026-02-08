@@ -343,7 +343,14 @@ export default function App() {
         if (!loading) createParty();
       }}>{loading ? 'CREATING...' : 'CREATE PARTY'}</button>
 
-      <button className="btn-primary btn-secondary" onClick={() => setView('enterCode')}>
+      <button className="btn-primary btn-secondary" onClick={() => {
+        if (!username.trim()) {
+          setError('Please enter your name');
+          return;
+        }
+        setError('');
+        setView('enterCode');
+      }}>
         JOIN PARTY
       </button>
     </div>
@@ -426,6 +433,9 @@ export default function App() {
     const colors = getThemeColor(storyTheme);
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <button className="btn-primary btn-red" onClick={() => setView('home')} style={{
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+      }}>BACK</button>
       <h1 className="logo" style={{
         fontSize: '1.5rem',
         background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
@@ -434,7 +444,8 @@ export default function App() {
         backgroundClip: 'text'
       }}>CROWDSTORY</h1>
       <div style={{marginTop: '3rem'}}>
-        <h3>ENTER CODE</h3>
+        <h3>ENTER ROOM CODE</h3>
+        <p style={{color: '#888', fontSize: '0.9rem'}}>Playing as: <strong>{username}</strong></p>
         {error && <p style={{ color: '#c0392b' }}>{error}</p>}
         <input
           type="text"
@@ -443,47 +454,15 @@ export default function App() {
           onChange={(e) => setRoomCode(e.target.value)}
           autoFocus
         />
-        <button className="btn-primary" onClick={async () => {
-          if (await validateRoomCode()) {
-            setView('enterName');
-          }
-        }} disabled={loading}>
-          {loading ? 'VALIDATING...' : 'CONTINUE'}
+        <button className="btn-primary" onClick={joinParty} disabled={loading}>
+          {loading ? 'JOINING...' : 'JOIN PARTY'}
         </button>
       </div>
     </div>
     );
   };
 
-  // 4. ENTER NAME (Member View)
-  const EnterNameScreen = () => {
-    const colors = getThemeColor(storyTheme);
-    return (
-    <div className="screen-card" style={{borderTopColor: colors.primary}}>
-      <h1 className="logo" style={{
-        fontSize: '1.5rem',
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
-      }}>CROWDSTORY</h1>
-      <div style={{marginTop: '3rem'}}>
-        <h3>ENTER USERNAME</h3>
-        {error && <p style={{ color: '#c0392b' }}>{error}</p>}
-        <input
-          type="text"
-          placeholder="Your Name"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoFocus
-        />
-        <button className="btn-primary" onClick={joinParty} disabled={loading}>
-          {loading ? 'JOINING...' : 'JOIN'}
-        </button>
-      </div>
-    </div>
-    );
-  };
+
 
   // 5. MEMBER LOBBY
   const MemberLobby = () => {
@@ -626,7 +605,6 @@ export default function App() {
       {view === 'home' && <HomeScreen />}
       {view === 'hostLobby' && <HostLobby />}
       {view === 'enterCode' && <EnterCodeScreen />}
-      {view === 'enterName' && <EnterNameScreen />}
       {view === 'memberLobby' && <MemberLobby />}
       {view === 'game' && <GameScreen />}
       {view === 'end' && <EndScreen />}

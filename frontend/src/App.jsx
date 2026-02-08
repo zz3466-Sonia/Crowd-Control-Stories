@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 
 export default function App() {
@@ -35,6 +35,8 @@ export default function App() {
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState('');
   const [storyTheme, setStoryTheme] = useState('scifi');
+  const gameCardRef = useRef(null);
+  const gameScrollTopRef = useRef(0);
 
   const resetSession = () => {
     setView('home');
@@ -206,13 +208,6 @@ export default function App() {
       if (data.error && data.error !== 'No API key') {
         setImageError(data.error);
       }
-      // Scroll to choices after image loads
-      setTimeout(() => {
-        const choicesSection = document.querySelector('.choices-section');
-        if (choicesSection) {
-          choicesSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }, 100);
     } catch (err) {
       // Only show critical errors, not image generation failures
       if (!err.message.includes('Image') && !err.message.includes('Empty response')) {
@@ -293,6 +288,14 @@ export default function App() {
 
   useEffect(() => {
     if (view !== 'game') return;
+    gameScrollTopRef.current = 0;
+    if (gameCardRef.current) {
+      gameCardRef.current.scrollTop = 0;
+    }
+  }, [view, gameState?.currentRound]);
+
+  useEffect(() => {
+    if (view !== 'game') return;
     setImageUrl('');
     setImageLoading(false);
     setImageError('');
@@ -315,6 +318,15 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, gameState?.currentStory]);
 
+  useLayoutEffect(() => {
+    if (view !== 'game') return;
+    const el = gameCardRef.current;
+    if (!el) return;
+    if (el.scrollTop !== gameScrollTopRef.current) {
+      el.scrollTop = gameScrollTopRef.current;
+    }
+  }, [view, displayedText, imageUrl, imageLoading]);
+
   useEffect(() => {
     if (view !== 'game') return;
     if (timer <= 0) {
@@ -331,7 +343,14 @@ export default function App() {
   const HomeScreen = () => {
     const colors = getThemeColor(storyTheme);
     return (
-    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+    <div
+      className="screen-card"
+      style={{borderTopColor: colors.primary}}
+      ref={gameCardRef}
+      onScroll={(e) => {
+        gameScrollTopRef.current = e.currentTarget.scrollTop;
+      }}
+    >
       <h1 className="logo" style={{
         background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
         WebkitBackgroundClip: 'text',

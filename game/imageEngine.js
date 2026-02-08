@@ -1,13 +1,13 @@
-// Image generation engine using Gemini Image API (with fallback handling)
+// Image generation engine (currently disabled - can be enabled with Dedalus or other AI image APIs)
 
 const https = require('https');
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+const API_KEY = process.env.DEDALUS_API_KEY;
 
 class ImageEngine {
   constructor() {
-    this.hasApiKey = !!GEMINI_API_KEY;
+    this.hasApiKey = !!API_KEY;
+    console.log('🖼️  Image generation: Currently disabled');
   }
 
   buildPrompt({ story, choice, visualProfile }) {
@@ -84,12 +84,9 @@ class ImageEngine {
   }
 
   async generateImage({ story, choice, visualProfile }) {
-    if (!this.hasApiKey) {
-      return { imageDataUrl: null, error: 'No API key' };
-    }
-
-    // Image generation temporarily disabled - Gemini image API not available
-    // Return graceful fallback instead of 404 error
+    // Image generation temporarily disabled
+    // Can be re-enabled with Dedalus image models or other AI image APIs
+    // Return graceful fallback instead of error
     return { 
       imageDataUrl: null, 
       error: null  // No error shown to user - graceful degradation

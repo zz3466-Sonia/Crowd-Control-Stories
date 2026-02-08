@@ -21,9 +21,11 @@ cd frontend && npm install && cd ..
 ### 第3步：配置 API 密钥（第一次必须做）
 创建 `.env` 文件（项目根目录）：
 ```
-GEMINI_API_KEY=你的API密钥
-GEMINI_MODEL=gemini-2.5-flash
+DEDALUS_API_KEY=你的Dedalus_API密钥
+DEDALUS_MODEL=anthropic/claude-sonnet-4-20250514
 ```
+
+获取 API 密钥：https://dedalus.ai/
 
 ---
 
@@ -83,7 +85,7 @@ npx vite --port 5173
 ## 💡 游戏特色
 
 ✨ **AI 故事生成**
-- 使用 Google Gemini API 生成独特故事
+- 使用 Dedalus AI API（支持 Claude, GPT, Gemini 等多种模型）
 - 如果 API 不可用，自动使用预设故事
 - 故事会根据你的选择继续发展
 

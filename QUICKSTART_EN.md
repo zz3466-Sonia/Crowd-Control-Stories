@@ -21,9 +21,11 @@ cd frontend && npm install && cd ..
 ### Step 3: Configure API Key (First Time Only)
 Create a `.env` file in the project root:
 ```
-GEMINI_API_KEY=your_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
+DEDALUS_API_KEY=your_dedalus_api_key_here
+DEDALUS_MODEL=anthropic/claude-sonnet-4-20250514
 ```
+
+Get your API key from: https://dedalus.ai/
 
 ---
 
@@ -81,7 +83,7 @@ Each round:
 ## 💡 Game Features
 
 ✨ **AI Story Generation**
-- Uses Google Gemini API to generate unique stories
+- Uses Dedalus AI API (supports Claude, GPT, Gemini, and more models)
 - Auto-fallback to preset stories if API is unavailable
 - Stories evolve based on player choices
 

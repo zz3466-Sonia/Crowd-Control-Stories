@@ -167,16 +167,7 @@ app.post('/api/game/next', async (req, res) => {
     const winnerIndex = winner === 'A' ? 0 : winner === 'B' ? 1 : 2;
     const winnerText = previousChoices[winnerIndex] || winner;
     
-    // Build context: previous story + chosen action
-    const storyContext = `${previousStory}\n\nThe players chose: ${winnerText}`;
-    
-    // Debug log
-    console.log(`\n🔍 Building context for Round ${currentRound + 1}:`);
-    console.log(`   Previous story: ${previousStory.substring(0, 100)}...`);
-    console.log(`   Winner: ${winner} (${winnerText})`);
-    console.log(`   Context length: ${storyContext.length} chars\n`);
-    
-    const roundContent = await storyEngine.generateRound(currentRound, storyContext, theme);
+    const roundContent = await storyEngine.generateRound(currentRound, winnerText, theme, previousStory);
     const state = gameState.nextRound(
       partyCode,
       winner,
@@ -239,5 +230,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`🌐 LAN access enabled on port ${PORT}`);
   console.log(`📡 Party system ready!`);
-  console.log(`🎨 Story engine: ${storyEngine.hasApiKey ? 'Gemini API' : 'Fallback mode'}`);
+  console.log(`🎨 Story engine: ${storyEngine.hasApiKey ? 'Dedalus AI API' : 'Fallback mode'}`);
 });

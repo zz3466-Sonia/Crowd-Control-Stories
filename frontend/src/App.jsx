@@ -321,12 +321,7 @@ export default function App() {
     const colors = getThemeColor(storyTheme);
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
-      <h1 className="logo" style={{
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
-      }}>CROWDSTORY</h1>
+      <h1 className="logo" style={{ color: colors.primary }}>CROWDSTORY</h1>
       <p className="subtitle">A party RPG game to play with your friends!</p>
 
       {error && <p style={{ color: '#c0392b' }}>{error}</p>}
@@ -363,14 +358,11 @@ export default function App() {
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
       <button className="btn-primary btn-red" onClick={leaveParty} style={{
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+        background: colors.primary
       }}>LEAVE GROUP</button>
       <h1 className="logo" style={{
         fontSize: '1.5rem',
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
+        color: colors.primary
       }}>CROWDSTORY</h1>
 
       <h3>CODE: {roomCode}</h3>
@@ -434,14 +426,11 @@ export default function App() {
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
       <button className="btn-primary btn-red" onClick={() => setView('home')} style={{
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+        background: colors.primary
       }}>BACK</button>
       <h1 className="logo" style={{
         fontSize: '1.5rem',
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
+        color: colors.primary
       }}>CROWDSTORY</h1>
       <div style={{marginTop: '3rem'}}>
         <h3>ENTER ROOM CODE</h3>
@@ -470,7 +459,7 @@ export default function App() {
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
       <button className="btn-primary btn-red" onClick={leaveParty} style={{
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+        background: colors.primary
       }}>LEAVE GROUP</button>
       <h1 className="logo" style={{
         fontSize: '1.5rem',
@@ -502,10 +491,7 @@ export default function App() {
       <h1 className="logo" style={{
         fontSize: '1.2rem',
         alignSelf: 'center',
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
+        color: colors.primary
       }}>CROWDSTORY</h1>
 
       {gameState?.lastWinner && (
@@ -582,10 +568,7 @@ export default function App() {
       <button className="btn-primary btn-red" onClick={resetSession}>HOME</button>
       <h1 className="logo" style={{
         fontSize: '1.5rem',
-        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
+        color: colors.primary
       }}>CROWDSTORY</h1>
 
       <h2 style={{color: '#555'}}>YOUR ENDING</h2>

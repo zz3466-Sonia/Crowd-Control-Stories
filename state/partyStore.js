@@ -1,4 +1,13 @@
 // Party data storage and management
+const crypto = require('crypto');
+
+const DEFAULT_VISUAL_PROFILE = [
+  'Main protagonist: a woman astronaut in her early 30s, short black hair, calm eyes, subtle scar on left cheek.',
+  'Signature outfit: blue-white spacesuit with a triangular chest patch and amber-tinted visor.',
+  'AI: a floating cyan hologram orb with faint circuit patterns.',
+  'Alien: tall, slender, bioluminescent skin with violet glow and elongated fingers.',
+  'Visual style: cinematic, soft lighting, consistent character design across scenes.'
+].join(' ');
 
 class PartyStore {
   constructor() {
@@ -22,7 +31,7 @@ class PartyStore {
   // Create a new party
   createParty(playerName) {
     const partyCode = this.generatePartyCode();
-    const playerId = Date.now().toString();
+    const playerId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
     
     this.parties[partyCode] = {
       players: [{
@@ -32,6 +41,7 @@ class PartyStore {
         joinedAt: new Date().toISOString()
       }],
       createdAt: new Date().toISOString(),
+      storyTheme: 'scifi',  // Default theme
       gameState: {
         started: false,
         currentRound: 0,
@@ -39,7 +49,8 @@ class PartyStore {
         currentChoices: [],
         votes: {},
         voteCounts: { A: 0, B: 0, C: 0 },
-        lastWinner: null
+        lastWinner: null,
+        visualProfile: DEFAULT_VISUAL_PROFILE
       }
     };
 
@@ -67,7 +78,7 @@ class PartyStore {
       throw new Error('Player name already taken in this party');
     }
 
-    const playerId = Date.now().toString();
+    const playerId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
     
     party.players.push({
       id: playerId,

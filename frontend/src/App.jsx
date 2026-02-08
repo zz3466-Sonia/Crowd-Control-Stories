@@ -5,6 +5,16 @@ export default function App() {
   const API_BASE = useMemo(() => (import.meta.env.VITE_API_BASE || ''), []);
   const MAX_ROUNDS = 5;
 
+  // Theme colors
+  const themeColors = {
+    scifi: { primary: '#87CEEB', secondary: '#B0E0E6', accent: '#00838F' },
+    romance: { primary: '#FF69B4', secondary: '#FFB6D9', accent: '#C41E3A' },
+    mystery: { primary: '#9370DB', secondary: '#B19CD9', accent: '#663399' },
+    adventure: { primary: '#FF8C00', secondary: '#FFB347', accent: '#FF6347' }
+  };
+
+  const getThemeColor = (theme) => themeColors[theme] || themeColors.scifi;
+
   // Navigation State
   const [view, setView] = useState('home'); // home, hostLobby, enterCode, enterName, memberLobby, game, end
 
@@ -20,6 +30,11 @@ export default function App() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
+  const [displayedText, setDisplayedText] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const [storyTheme, setStoryTheme] = useState('scifi');
 
   const resetSession = () => {
     setView('home');
@@ -33,6 +48,9 @@ export default function App() {
     setSelectedChoice('');
     setError('');
     setTimer(30);
+    setImageUrl('');
+    setImageLoading(false);
+    setImageError('');
   };
 
   const safeJson = async (res) => {
@@ -57,6 +75,26 @@ export default function App() {
     } catch (err) {
       setError(err.message || 'Network error');
       throw err;
+    }
+  };
+
+  const playSound = (type = 'click') => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = type === 'success' ? 880 : 440;
+      gain.gain.value = 0.05;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+      osc.onended = () => ctx.close();
+    } catch {
+      // ignore audio errors
     }
   };
 
@@ -139,26 +177,51 @@ export default function App() {
     try {
       const data = await apiRequest('/api/game/start', {
         method: 'POST',
-        body: JSON.stringify({ partyCode: roomCode })
+        body: JSON.stringify({ partyCode: roomCode, theme: storyTheme })
       });
       setGameState(data.gameState);
       setVoteCounts(data.gameState.voteCounts || { A: 0, B: 0, C: 0 });
       setSelectedChoice('');
       setTimer(30);
+      setImageUrl('');
+      setImageLoading(false);
+      setImageError('');
       setView('game');
     } finally {
       setLoading(false);
     }
   };
 
+  const generateImage = async (choice) => {
+    if (!roomCode || !choice) return;
+    setImageLoading(true);
+    setImageError('');
+    try {
+      const data = await apiRequest('/api/game/image', {
+        method: 'POST',
+        body: JSON.stringify({ partyCode: roomCode, choice })
+      });
+      setImageUrl(data.imageDataUrl || '');
+      if (!data.imageDataUrl) {
+        setImageError('No image returned');
+      }
+    } catch (err) {
+      setImageError(err.message || 'Image generation failed');
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
   const submitVote = async (choice) => {
     if (!roomCode || !playerId || !choice) return;
+    playSound('click');
     setSelectedChoice(choice);
     const data = await apiRequest('/api/game/vote', {
       method: 'POST',
       body: JSON.stringify({ partyCode: roomCode, playerId, choice })
     });
     setVoteCounts(data.voteCounts || { A: 0, B: 0, C: 0 });
+    generateImage(choice);
   };
 
   const nextRound = async () => {
@@ -173,6 +236,9 @@ export default function App() {
       setVoteCounts(data.gameState.voteCounts || { A: 0, B: 0, C: 0 });
       setSelectedChoice('');
       setTimer(30);
+      setImageUrl('');
+      setImageLoading(false);
+      setImageError('');
       if (data.gameState.currentRound >= MAX_ROUNDS) {
         setView('end');
       } else {
@@ -216,6 +282,30 @@ export default function App() {
 
   useEffect(() => {
     if (view !== 'game') return;
+    setImageUrl('');
+    setImageLoading(false);
+    setImageError('');
+  }, [view, gameState?.currentRound]);
+
+  useEffect(() => {
+    if (view !== 'game') return;
+    const story = gameState?.currentStory || '';
+    if (!story) {
+      setDisplayedText('');
+      return;
+    }
+    setDisplayedText('');
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 1;
+      setDisplayedText(story.slice(0, i));
+      if (i >= story.length) clearInterval(interval);
+    }, 30);
+    return () => clearInterval(interval);
+  }, [view, gameState?.currentStory]);
+
+  useEffect(() => {
+    if (view !== 'game') return;
     if (timer <= 0) {
       if (isHost) nextRound();
       return;
@@ -227,9 +317,16 @@ export default function App() {
   // --- VIEWS ---
 
   // 1. HOME PAGE
-  const HomeScreen = () => (
-    <div className="screen-card">
-      <h1 className="logo">CROWDSTORY</h1>
+  const HomeScreen = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <h1 className="logo" style={{
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
       <p className="subtitle">A party RPG game to play with your friends!</p>
 
       {error && <p style={{ color: '#c0392b' }}>{error}</p>}
@@ -250,36 +347,92 @@ export default function App() {
         JOIN PARTY
       </button>
     </div>
-  );
+    );
+  };
 
   // 2. HOST LOBBY
-  const HostLobby = () => (
-    <div className="screen-card">
-      <button className="btn-primary btn-red" onClick={leaveParty}>LEAVE GROUP</button>
-      <h1 className="logo" style={{fontSize: '1.5rem'}}>CROWDSTORY</h1>
+  const HostLobby = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <button className="btn-primary btn-red" onClick={leaveParty} style={{
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+      }}>LEAVE GROUP</button>
+      <h1 className="logo" style={{
+        fontSize: '1.5rem',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
 
       <h3>CODE: {roomCode}</h3>
 
       <div className="player-list">
         {players.map((p) => (
-          <div key={p.id} className={`player-chip ${p.isHost ? 'host-chip' : ''}`}>
+          <div key={p.id} className={`player-chip ${p.isHost ? 'host-chip' : ''}`}
+            style={p.isHost ? { background: colors.secondary, borderColor: colors.primary } : {}}
+          >
             {p.name} {p.isHost ? '(HOST)' : ''}
           </div>
         ))}
       </div>
 
+      {/* Story Theme Selection */}
+      <div style={{marginTop: '20px', marginBottom: '20px', width: '100%', maxWidth: '320px'}}>
+        <p style={{fontSize: '0.9rem', color: '#888', marginBottom: '10px'}}>Choose Story Theme:</p>
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px'}}>
+          {['scifi', 'romance', 'mystery', 'adventure'].map((theme) => {
+            const themeColor = getThemeColor(theme);
+            return (
+            <button
+              key={theme}
+              onClick={() => setStoryTheme(theme)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: storyTheme === theme ? `2px solid ${themeColor.primary}` : '1px solid #ddd',
+                background: storyTheme === theme ? themeColor.secondary : '#f5f5f5',
+                color: storyTheme === theme ? themeColor.accent : '#888',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.85rem',
+                textTransform: 'capitalize'
+              }}
+            >
+              {theme}
+            </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{marginTop: 'auto'}}>
-        <button className="btn-primary" onClick={startGame} disabled={loading}>
+        <button 
+          className="btn-primary" 
+          onClick={startGame} 
+          disabled={loading}
+          style={{ background: colors.primary }}
+        >
           {loading ? 'STARTING...' : 'START GAME'}
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   // 3. ENTER CODE (Member View)
-  const EnterCodeScreen = () => (
-    <div className="screen-card">
-      <h1 className="logo" style={{fontSize: '1.5rem'}}>CROWDSTORY</h1>
+  const EnterCodeScreen = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <h1 className="logo" style={{
+        fontSize: '1.5rem',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
       <div style={{marginTop: '3rem'}}>
         <h3>ENTER CODE</h3>
         {error && <p style={{ color: '#c0392b' }}>{error}</p>}
@@ -299,12 +452,21 @@ export default function App() {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   // 4. ENTER NAME (Member View)
-  const EnterNameScreen = () => (
-    <div className="screen-card">
-      <h1 className="logo" style={{fontSize: '1.5rem'}}>CROWDSTORY</h1>
+  const EnterNameScreen = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <h1 className="logo" style={{
+        fontSize: '1.5rem',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
       <div style={{marginTop: '3rem'}}>
         <h3>ENTER USERNAME</h3>
         {error && <p style={{ color: '#c0392b' }}>{error}</p>}
@@ -320,13 +482,24 @@ export default function App() {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   // 5. MEMBER LOBBY
-  const MemberLobby = () => (
-    <div className="screen-card">
-      <button className="btn-primary btn-red" onClick={leaveParty}>LEAVE GROUP</button>
-      <h1 className="logo" style={{fontSize: '1.5rem'}}>CROWDSTORY</h1>
+  const MemberLobby = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <button className="btn-primary btn-red" onClick={leaveParty} style={{
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`
+      }}>LEAVE GROUP</button>
+      <h1 className="logo" style={{
+        fontSize: '1.5rem',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
       <h3>CODE: {roomCode}</h3>
 
       <div className="player-list">
@@ -339,15 +512,25 @@ export default function App() {
 
       <p style={{marginTop: 'auto', color: '#888'}}>Waiting for host to start...</p>
     </div>
-  );
+    );
+  };
 
   // 6. GAME SCREEN (The Story)
-  const GameScreen = () => (
-    <div className="screen-card">
-      <h1 className="logo" style={{fontSize: '1.2rem', alignSelf: 'center'}}>CROWDSTORY</h1>
+  const GameScreen = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <h1 className="logo" style={{
+        fontSize: '1.2rem',
+        alignSelf: 'center',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
 
       {gameState?.lastWinner && (
-        <p style={{ marginTop: '10px', color: '#2c3e50', alignSelf: 'center' }}>
+        <p style={{ marginTop: '10px', color: colors.accent, alignSelf: 'center' }}>
           Last round winner: {gameState.lastWinner}
         </p>
       )}
@@ -358,8 +541,22 @@ export default function App() {
 
       {/* Story Text */}
       <div style={{fontSize: '1rem', margin: '20px 0', lineHeight: '1.5', maxWidth: '320px', textAlign: 'left'}}>
-        {gameState?.currentStory || 'Loading story...'}
+        {displayedText || 'Loading story...'}
       </div>
+
+      {(imageLoading || imageError || imageUrl) && (
+        <div style={{ margin: '10px 0', width: '100%', maxWidth: '320px' }}>
+          {imageLoading && <p style={{ color: '#888' }}>Generating image...</p>}
+          {imageError && <p style={{ color: '#c0392b' }}>{imageError}</p>}
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt="Story scene"
+              className="story-image"
+            />
+          )}
+        </div>
+      )}
 
       {/* Choices */}
       <div style={{width: '100%', maxWidth: '320px', marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
@@ -371,9 +568,11 @@ export default function App() {
               key={choice}
               className="choice-btn"
               onClick={() => submitVote(label)}
-              disabled={!!selectedChoice}
               style={{
-                border: selectedChoice === label ? '2px solid #2c3e50' : undefined
+                background: colors.secondary,
+                borderColor: colors.primary,
+                color: colors.accent,
+                border: selectedChoice === label ? `2px solid ${colors.accent}` : `2px solid ${colors.primary}`
               }}
             >
               {choice} ({count})
@@ -383,18 +582,32 @@ export default function App() {
       </div>
 
       {isHost && (
-        <button className="btn-primary" style={{marginTop: '20px'}} onClick={nextRound} disabled={loading}>
+        <button 
+          className="btn-primary" 
+          style={{marginTop: '20px', background: colors.primary}} 
+          onClick={nextRound} 
+          disabled={loading}
+        >
           {loading ? 'ADVANCING...' : 'NEXT ROUND'}
         </button>
       )}
     </div>
-  );
+    );
+  };
 
   // 7. END SCREEN
-  const EndScreen = () => (
-    <div className="screen-card">
+  const EndScreen = () => {
+    const colors = getThemeColor(storyTheme);
+    return (
+    <div className="screen-card" style={{borderTopColor: colors.primary}}>
       <button className="btn-primary btn-red" onClick={resetSession}>HOME</button>
-      <h1 className="logo" style={{fontSize: '1.5rem'}}>CROWDSTORY</h1>
+      <h1 className="logo" style={{
+        fontSize: '1.5rem',
+        background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})`,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>CROWDSTORY</h1>
 
       <h2 style={{color: '#555'}}>YOUR ENDING</h2>
 
@@ -404,7 +617,8 @@ export default function App() {
 
       <button className="btn-primary" style={{marginTop: 'auto'}} onClick={resetSession}>PLAY AGAIN</button>
     </div>
-  );
+    );
+  };
 
   // --- RENDER CONTROLLER ---
   return (

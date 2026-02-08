@@ -8,6 +8,7 @@ const partyStore = require('./state/partyStore');
 const GameState = require('./game/gameState');
 const storyEngine = require('./game/storyEngine');
 const VotingEngine = require('./game/votingEngine');
+const imageEngine = require('./game/imageEngine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -102,21 +103,26 @@ app.post('/api/party/leave', (req, res) => {
 
 // Start game (host only recommended)
 app.post('/api/game/start', async (req, res) => {
-  const { partyCode } = req.body;
+  const { partyCode, theme } = req.body;
 
   if (!partyCode) {
     return res.status(400).json({ error: 'Party code is required' });
   }
 
   try {
-    const roundContent = await storyEngine.generateRound(0);
+    const party = partyStore.getParty(partyCode);
+    if (theme) {
+      party.storyTheme = theme;  // Set chosen theme
+    }
+    
+    const roundContent = await storyEngine.generateRound(0, null, party.storyTheme);
     const state = gameState.startGame(
       partyCode,
       roundContent.story,
       roundContent.choices
     );
 
-    console.log(`🎮 Game started for party ${partyCode}`);
+    console.log(`🎮 Game started for party ${partyCode} with theme: ${party.storyTheme}`);
     res.json({ success: true, gameState: state });
   } catch (error) {
     const status = error.message === 'Party not found' ? 404 : 400;
@@ -152,8 +158,10 @@ app.post('/api/game/next', async (req, res) => {
   try {
     const { winner } = votingEngine.tallyVotes(partyCode);
     const currentRound = gameState.getCurrentRound(partyCode);
+    const party = partyStore.getParty(partyCode);
+    const theme = party.storyTheme || 'scifi';
     
-    const roundContent = await storyEngine.generateRound(currentRound, winner);
+    const roundContent = await storyEngine.generateRound(currentRound, winner, theme);
     const state = gameState.nextRound(
       partyCode,
       winner,
@@ -163,6 +171,32 @@ app.post('/api/game/next', async (req, res) => {
 
     console.log(`➡️  Party ${partyCode} moved to round ${state.currentRound}`);
     res.json({ success: true, gameState: state });
+  } catch (error) {
+    const status = error.message.includes('not found') ? 404 : 400;
+    res.status(status).json({ error: error.message });
+  }
+});
+
+// Generate image for a selected choice
+app.post('/api/game/image', async (req, res) => {
+  const { partyCode, choice } = req.body;
+
+  if (!partyCode || !choice) {
+    return res.status(400).json({ error: 'Party code and choice are required' });
+  }
+
+  try {
+    const party = partyStore.getParty(partyCode);
+    const story = party.gameState.currentStory || '';
+    const visualProfile = party.gameState.visualProfile || '';
+
+    const result = await imageEngine.generateImage({ story, choice, visualProfile });
+
+    if (result.error) {
+      return res.status(502).json({ error: result.error });
+    }
+
+    res.json({ success: true, imageDataUrl: result.imageDataUrl });
   } catch (error) {
     const status = error.message.includes('not found') ? 404 : 400;
     res.status(status).json({ error: error.message });

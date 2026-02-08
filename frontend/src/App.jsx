@@ -1,17 +1,38 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
+import Particles from './Particles.jsx';
 
 export default function App() {
   const API_BASE = useMemo(() => (import.meta.env.VITE_API_BASE || ''), []);
   const MAX_ROUNDS = 5;
 
   // Theme colors
-  const themeColors = {
-    scifi: { primary: '#87CEEB', secondary: '#B0E0E6', accent: '#00838F' },
-    romance: { primary: '#FF69B4', secondary: '#FFB6D9', accent: '#C41E3A' },
-    mystery: { primary: '#9370DB', secondary: '#B19CD9', accent: '#663399' },
-    adventure: { primary: '#FF8C00', secondary: '#FFB347', accent: '#FF6347' }
-  };
+ const themeColors = {
+  scifi: {
+    logo: 'rgb(135, 206, 235)',
+    primary: 'rgb(135, 206, 235)',
+    secondary: '#B0E0E6',
+    accent: '#00838F'
+  },
+  romance: {
+    logo: '#ffb4da',
+    primary: '#ffb4da',
+    secondary: '#FFB6D9',
+    accent: '#C41E3A'
+  },
+  mystery: {
+    logo: '#663399', // purple
+    primary: '#ccb3ff',
+    secondary: '#B19CD9',
+    accent: '#663399'
+  },
+  adventure: {
+    logo: '#FFB347',
+    primary: '#ffd6a3',
+    secondary: '#FFB347',
+    accent: '#FF6347'
+  }
+};
 
   const getThemeColor = (theme) => themeColors[theme] || themeColors.scifi;
 
@@ -325,7 +346,10 @@ export default function App() {
     const colors = getThemeColor(storyTheme);
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
-      <h1 className="logo" style={{ color: colors.primary }}>CROWDSTORY</h1>
+
+  <h1 className="logo" style={{ color: colors.logo }}>
+    CROWDSTORY
+  </h1>
       <p className="subtitle">A party RPG game to play with your friends!</p>
 
       {error && <p style={{ color: '#c0392b' }}>{error}</p>}
@@ -365,7 +389,7 @@ export default function App() {
         background: colors.primary
       }}>LEAVE GROUP</button>
       <h1 className="logo" style={{
-        fontSize: '1.5rem',
+        fontSize: '2.5rem',
         color: colors.primary
       }}>CROWDSTORY</h1>
 
@@ -374,8 +398,8 @@ export default function App() {
       <div className="player-list">
         {players.map((p) => (
           <div key={p.id} className={`player-chip ${p.isHost ? 'host-chip' : ''}`}
-            style={p.isHost ? { background: colors.secondary, borderColor: colors.primary } : {}}
-          >
+            style={p.isHost ? { background: colors.secondary, borderColor: colors.primary } : {}}>
+            
             {p.name} {p.isHost ? '(HOST)' : ''}
           </div>
         ))}
@@ -383,7 +407,7 @@ export default function App() {
 
       {/* Story Theme Selection */}
       <div style={{marginTop: '20px', marginBottom: '20px', width: '100%', maxWidth: '320px'}}>
-        <p style={{fontSize: '0.9rem', color: '#888', marginBottom: '10px'}}>Choose Story Theme:</p>
+        <p style={{fontSize: '0.9rem', color: '#373737', marginBottom: '10px'}}>Choose Genre:</p>
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px'}}>
           {['scifi', 'romance', 'mystery', 'adventure'].map((theme) => {
             const themeColor = getThemeColor(theme);
@@ -401,6 +425,7 @@ export default function App() {
                 fontWeight: 'bold',
                 fontSize: '0.85rem',
                 textTransform: 'capitalize'
+
               }}
             >
               {theme}
@@ -477,7 +502,15 @@ export default function App() {
       <div className="player-list">
         {players.map((p) => (
           <div key={p.id} className={`player-chip ${p.isHost ? 'host-chip' : ''}`}>
-            {p.name} {p.isHost ? '(HOST)' : ''}
+          <img
+          src= "/Person.png"
+          alt="host"
+          style={{
+            width: "16px",
+            marginRight: "6px",
+            verticalAlign: "middle"
+          }}/>
+          {p.name} {p.isHost ? '(HOST)' : ''}
           </div>
         ))}
       </div>
@@ -596,13 +629,29 @@ export default function App() {
 
   // --- RENDER CONTROLLER ---
   return (
-    <div className="app-container">
-      {view === 'home' && <HomeScreen />}
-      {view === 'hostLobby' && <HostLobby />}
-      {view === 'enterCode' && <EnterCodeScreen />}
-      {view === 'memberLobby' && <MemberLobby />}
-      {view === 'game' && <GameScreen />}
-      {view === 'end' && <EndScreen />}
+    <div className="app-shell">
+      <div className="particles-layer">
+        <Particles
+          particleColors={[getThemeColor(storyTheme).primary, '#ffffff']}
+          particleCount={160}
+          particleSpread={8}
+          speed={0.08}
+          particleBaseSize={140}
+          moveParticlesOnHover
+          alphaParticles={false}
+          disableRotation={false}
+          pixelRatio={window.devicePixelRatio || 1}
+        />
+      </div>
+
+      <div className="app-container">
+        {view === 'home' && <HomeScreen />}
+        {view === 'hostLobby' && <HostLobby />}
+        {view === 'enterCode' && <EnterCodeScreen />}
+        {view === 'memberLobby' && <MemberLobby />}
+        {view === 'game' && <GameScreen />}
+        {view === 'end' && <EndScreen />}
+      </div>
     </div>
   );
 }

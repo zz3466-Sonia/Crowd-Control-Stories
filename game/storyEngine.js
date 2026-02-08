@@ -48,139 +48,133 @@ class StoryEngine {
   }
 
   buildSciFiPrompt(roundIndex, previousChoice) {
+    const storyContext = previousChoice 
+      ? `PREVIOUS STORY:\n${previousChoice}\n\n⚠️ IMPORTANT: Start your new story by BRIEFLY mentioning what the players chose (in 1 short sentence), then continue the story.`
+      : 'START: The signal appears on the silent space station. Introduce the three characters and the mysterious signal.';
+    
     return [
       '=== INTERACTIVE SCI-FI STORY GENERATOR ===',
-      'You are continuing an interactive sci-fi story with THREE CHARACTERS:',
-      '- An astronaut (human explorer)',
-      '- An AI (advanced artificial intelligence)',
-      '- An alien (mysterious extraterrestrial)',
-      '',
-      'SETTING: They are on a silent space station where an unknown signal has appeared.',
-      '',
-      'THEME: Maintain suspense, mystery, and sci-fi atmosphere throughout.',
-      'Keep the same three characters in every scene.',
+      'THREE CHARACTERS:',
+      '- Astronaut (human explorer)',
+      '- AI (advanced intelligence)',
+      '- Alien (mysterious being)',
       '',
       `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}" in the last round. Continue the story based on this choice.` : 'This is the first round. Start the story.',
+      storyContext,
       '',
-      'OUTPUT FORMAT (JSON ONLY):',
+      'OUTPUT FORMAT (JSON):',
       '{',
-      '  "story": "A short scene description (50-70 words). Show what the characters do/say based on the previous choice.",',
+      '  "story": "If continuing: Start with 1 SHORT sentence about what was chosen, then write 2-3 sentences (40-50 words total) continuing the story.",',
       '  "choices": [',
-      '    "A) [Action option related to astronaut]",',
-      '    "B) [Action option related to AI]",',
-      '    "C) [Action option related to alien]"',
+      '    "A) [Astronaut action]",',
+      '    "B) [AI action]",',
+      '    "C) [Alien action]"',
       '  ]',
       '}',
       '',
-      'CRITICAL RULES:',
-      '- Write ONLY in English (no other languages)',
-      '- Story must be 50-70 words',
-      '- Choices must start with A), B), C)',
-      '- Each choice <= 12 words',
-      '- Keep sci-fi theme consistent',
-      '- Return ONLY the JSON, no extra text'
+      'RULES:',
+      '- English only',
+      '- 3-4 sentences MAX (40-50 words TOTAL)',
+      '- First sentence: briefly mention the choice',
+      '- Then: continue the story',
+      '- Choices <= 10 words',
+      '- JSON only'
     ].join('\n');
   }
 
   buildRomancePrompt(roundIndex, previousChoice) {
+    const storyContext = previousChoice 
+      ? `PREVIOUS STORY:\n${previousChoice}\n\n⚠️ IMPORTANT: Start your new story by BRIEFLY mentioning what the players chose (in 1 short sentence), then continue the story.`
+      : 'START: Two Columbia students meet in an ordinary campus moment. Make it feel real and slightly awkward.';
+    
     return [
-      '=== INTERACTIVE ROMANTIC STORY GENERATOR ===',
-      'You are a COLUMBIA UNIVERSITY CAMPUS STORY GENERATOR:',
-      '- This is a slice-of-life romantic story set at Columbia University. No AI. No sci-fi. No fantasy. Everything must feel REAL.',
-      '- Female protagonist: Undergraduate at Columbia (20-22), intelligent, slightly guarded, emotionally self-aware.',
-      '- Male protagonist: Undergraduate at Columbia (20-22), calm, low-key confident, shows care through small actions.',
-      '- Interrupter/catalyst: A realistic campus element (mutual friend, deadline, class, dining hall, weather, timing).',
-      '',
-      'SETTING: Real Columbia University locations (Butler Library, Dodge Hall, John Jay dining, College Walk, Low Library steps).',
-      '',
-      'THEME: Grounded campus realism with subtle slow-burn romance. Tension through proximity, timing, and silence.',
-      'TONE: Contemporary college life; slightly awkward; emotionally restrained; realistic for Ivy League students.',
+      '=== ROMANTIC CAMPUS STORY ===',
+      'Columbia University setting. Two students (20-22). Real college life.',
       '',
       `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". Continue naturally from this decision.` : 'This is round 1. Begin with an ordinary Columbia moment that feels insignificant but emotionally charged.',
+      storyContext,
       '',
-      'STORY REQUIREMENTS:',
-      '- 60-90 words. Focus on small moments (eye contact, walking together, shared food, sitting quietly).',
-      '- Include one subtle romantic beat (hesitation, unspoken thought, missed chance).',
-      '- The interrupter must affect the scene (delay, awkwardness, or push).',
-      '',
-      'CHOICES DESIGN:',
-      '- A) Emotional risk or closeness (staying longer, opening up, sharing something)',
-      '- B) Staying rational/guarded (leaving, studying, keeping distance)',
-      '- C) External interruption (friend, event, schedule, campus situation intervenes)',
-      '',
-      'OUTPUT FORMAT (JSON ONLY):',
+      'OUTPUT FORMAT (JSON):',
       '{',
-      '  "story": "A short, cinematic campus scene with subtle emotional tension.",',
+      '  "story": "If continuing: Start with 1 SHORT sentence about what was chosen, then write 2-3 sentences (40-50 words total) continuing the story.",',
       '  "choices": [',
-      '    "A) [Emotion-forward: stay longer, open up slightly, share something small]",',
-      '    "B) [Practical: leave, study, keep distance, stay neutral]",',
-      '    "C) [Interruption: friend, event, schedule intervenes]"',
+      '    "A) [Stay/open up]",',
+      '    "B) [Leave/distance]",',
+      '    "C) [Interruption]"',
       '  ]',
       '}',
       '',
-      'Return ONLY the JSON, no extra text.'
+      'RULES:',
+      '- English only',
+      '- 3-4 sentences MAX (40-50 words TOTAL)',
+      '- First sentence: briefly mention the choice',
+      '- Then: continue the story',
+      '- Choices <= 10 words',
+      '- JSON only'
     ].join('\n');
   }
 
   buildMysteryPrompt(roundIndex, previousChoice) {
+    const storyContext = previousChoice 
+      ? `PREVIOUS STORY:\n${previousChoice}\n\n⚠️ IMPORTANT: Start your new story by BRIEFLY mentioning what the players chose (in 1 short sentence), then continue the story.`
+      : 'START: A detective makes a curious discovery in a coastal town. Introduce the mystery.';
+    
     return [
-      '=== INTERACTIVE MYSTERY STORY GENERATOR ===',
-      'You are crafting an interactive mystery with THREE CHARACTERS:',
-      '- A detective (sharp-minded investigator)',
-      '- A suspect (with secrets to hide)',
-      '- A witness (knows more than they are saying)',
-      '',
-      'SETTING: A small coastal town with hidden connections and secrets.',
-      '',
-      'THEME: Build suspense and intrigue. Each clue leads to more questions.',
-      'Keep the same three characters and maintain continuity.',
+      '=== MYSTERY STORY ===',
+      'Detective, suspect, witness in a coastal town.',
       '',
       `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". This clue or action drives the investigation forward.` : 'This is round 1. Begin with a curious discovery or an unexpected encounter.',
+      storyContext,
       '',
-      'OUTPUT FORMAT (JSON ONLY):',
+      'OUTPUT FORMAT (JSON):',
       '{',
-      '  "story": "A 50-70 word scene revealing clues, motives, or unexpected twists.",',
+      '  "story": "If continuing: Start with 1 SHORT sentence about what was chosen, then write 2-3 sentences (40-50 words total) continuing the story.",',
       '  "choices": [',
       '    "A) [Investigate deeper]",',
       '    "B) [Trust intuition]",',
-      '    "C) [Uncover a secret]"',
+      '    "C) [Uncover secret]"',
       '  ]',
       '}',
       '',
-      'Return ONLY the JSON, no extra text.'
+      'RULES:',
+      '- English only',
+      '- 3-4 sentences MAX (40-50 words TOTAL)',
+      '- First sentence: briefly mention the choice',
+      '- Then: continue the story',
+      '- Choices <= 10 words',
+      '- JSON only'
     ].join('\n');
   }
 
   buildAdventurePrompt(roundIndex, previousChoice) {
+    const storyContext = previousChoice 
+      ? `PREVIOUS STORY:\n${previousChoice}\n\n⚠️ IMPORTANT: Start your new story by BRIEFLY mentioning what the players chose (in 1 short sentence), then continue the story.`
+      : 'START: An explorer, companion, and guide face danger in an exotic world. Begin the adventure.';
+    
     return [
-      '=== INTERACTIVE ADVENTURE STORY GENERATOR ===',
-      'You are creating an interactive adventure with THREE CHARACTERS:',
-      '- A brave explorer (resourceful and quick-thinking)',
-      '- A loyal companion (steady and loyal)',
-      '- A mysterious guide (knows the secrets of this world)',
-      '',
-      'SETTING: An exotic, dangerous world full of wonder and peril.',
-      '',
-      'THEME: Action, discovery, and survival. Each choice has real consequences.',
-      'Keep the same three characters and maintain the adventure momentum.',
+      '=== ADVENTURE STORY ===',
+      'Explorer, companion, guide in a dangerous world.',
       '',
       `ROUND: ${roundIndex + 1}`,
-      previousChoice ? `PREVIOUS CHOICE: The audience chose "${previousChoice}". This action shapes the adventure ahead.` : 'This is round 1. Begin with an exciting moment of discovery or danger.',
+      storyContext,
       '',
-      'OUTPUT FORMAT (JSON ONLY):',
+      'OUTPUT FORMAT (JSON):',
       '{',
-      '  "story": "A 50-70 word scene full of action, discovery, or danger.",',
+      '  "story": "If continuing: Start with 1 SHORT sentence about what was chosen, then write 2-3 sentences (40-50 words total) continuing the story.",',
       '  "choices": [',
-      '    "A) [Take the risky path]",',
-      '    "B) [Play it safe]",',
-      '    "C) [Follow your instincts]"',
+      '    "A) [Risky path]",',
+      '    "B) [Safe route]",',
+      '    "C) [Follow instinct]"',
       '  ]',
       '}',
       '',
-      'Return ONLY the JSON, no extra text.'
+      'RULES:',
+      '- English only',
+      '- 3-4 sentences MAX (40-50 words TOTAL)',
+      '- First sentence: briefly mention the choice',
+      '- Then: continue the story',
+      '- Choices <= 10 words',
+      '- JSON only'
     ].join('\n');
   }
 

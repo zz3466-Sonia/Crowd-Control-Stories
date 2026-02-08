@@ -161,7 +161,22 @@ app.post('/api/game/next', async (req, res) => {
     const party = partyStore.getParty(partyCode);
     const theme = party.storyTheme || 'scifi';
     
-    const roundContent = await storyEngine.generateRound(currentRound, winner, theme);
+    // Get the full text of the winning choice
+    const previousStory = party.gameState.currentStory || '';
+    const previousChoices = party.gameState.currentChoices || [];
+    const winnerIndex = winner === 'A' ? 0 : winner === 'B' ? 1 : 2;
+    const winnerText = previousChoices[winnerIndex] || winner;
+    
+    // Build context: previous story + chosen action
+    const storyContext = `${previousStory}\n\nThe players chose: ${winnerText}`;
+    
+    // Debug log
+    console.log(`\n🔍 Building context for Round ${currentRound + 1}:`);
+    console.log(`   Previous story: ${previousStory.substring(0, 100)}...`);
+    console.log(`   Winner: ${winner} (${winnerText})`);
+    console.log(`   Context length: ${storyContext.length} chars\n`);
+    
+    const roundContent = await storyEngine.generateRound(currentRound, storyContext, theme);
     const state = gameState.nextRound(
       partyCode,
       winner,

@@ -202,11 +202,15 @@ export default function App() {
         body: JSON.stringify({ partyCode: roomCode, choice })
       });
       setImageUrl(data.imageDataUrl || '');
-      if (!data.imageDataUrl) {
-        setImageError('No image returned');
+      // Don't show error if no image - graceful degradation
+      if (data.error && data.error !== 'No API key') {
+        setImageError(data.error);
       }
     } catch (err) {
-      setImageError(err.message || 'Image generation failed');
+      // Only show critical errors, not image generation failures
+      if (!err.message.includes('Image') && !err.message.includes('Empty response')) {
+        setImageError(err.message || 'Error loading image');
+      }
     } finally {
       setImageLoading(false);
     }
@@ -488,6 +492,14 @@ export default function App() {
     const colors = getThemeColor(storyTheme);
     return (
     <div className="screen-card" style={{borderTopColor: colors.primary}}>
+      <button 
+        className="btn-primary btn-red" 
+        onClick={() => resetSession()} 
+        style={{background: colors.accent, fontSize: '0.8rem', padding: '6px 12px', alignSelf: 'flex-start'}}
+      >
+        ← EXIT
+      </button>
+      
       <h1 className="logo" style={{
         fontSize: '1.2rem',
         alignSelf: 'center',
